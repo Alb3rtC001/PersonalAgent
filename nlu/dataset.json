@@ -1,0 +1,430 @@
+[
+  {
+    "frase": "abre discord",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "ábreme discord",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "abre steam",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "abre spotify",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "abre el navegador",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "abre chrome",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "abre la calculadora",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "abre whatsapp",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "abre telegram",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "abre blender",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "abre obs",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "abre visual studio code",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "abre el explorador de archivos",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "quiero abrir discord",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "quiero abrir steam",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "necesito abrir spotify",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "puedes abrir chrome",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "puedes abrirme discord",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "inicia steam",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "inicia spotify",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "inicia el navegador",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "ejecuta blender",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "ejecuta la calculadora",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "lanza discord",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "lanza steam",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "pon en marcha spotify",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "arranca chrome",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "arranca obs",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "necesito discord abierto",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "hazme el favor de abrir steam",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "abre epic games",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "abre el editor de codigo",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "abre la app de notas",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "abre el explorador",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "abreme el navegador",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "me abres discord",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "abre whatsapp web",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "crea una nota",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "crea una nota que diga comprar pan",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "apunta esto",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "apunta que tengo reunion a las cinco",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "anota esto",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "anota que hay que llamar al medico",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "guarda una nota",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "guarda una nota con la lista de la compra",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "quiero crear una nota",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "quiero apuntar algo",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "necesito anotar una idea",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "puedes crear una nota",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "puedes apuntar esto por mi",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "hazme una nota",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "hazme una nota que diga revisar el coche",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "escribe una nota",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "escribe una nota sobre la reunion de mañana",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "toma nota de esto",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "toma nota que hay que pagar la luz",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "apunta la idea que tengo",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "crea una nota rapida",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "necesito una nota nueva",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "guarda esto en una nota",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "quiero dejar apuntado algo",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "apunta una idea para el proyecto",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "crea una nota con el titulo compras",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "anota el numero de telefono",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "guarda una nota sobre el libro",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "apunta que hay que comprar leche",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "hazme el favor de anotar esto",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "crea una nota vacia",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "quiero guardar una nota de texto",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "anotame esto",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "apuntame lo que digo",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "crea una nota con lo que te voy a decir",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "que tiempo hace hoy",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "cuanto es dos mas dos",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "cuentame un chiste",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "como estas",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "que hora es",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "quien gano el partido de ayer",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "cual es la capital de francia",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "hola que tal",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "buenos dias",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "gracias por la ayuda",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "que dia es hoy",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "cuentame algo interesante",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "como te llamas",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "eres una inteligencia artificial",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "cual es tu color favorito",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "recomiendame una pelicula",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "traduce esta frase al ingles",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "que significa la palabra efimero",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "cuanto pesa la luna",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "explica la teoria de la relatividad",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "quien escribio don quijote",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "cual es la velocidad de la luz",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "cuentas chistes",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "dime un dato curioso",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "que opinas de la inteligencia artificial",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "cuanto falta para navidad",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "resuelve esta ecuacion",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "ayudame con mi tarea de matematicas",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "cual es el sentido de la vida",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "adios hasta luego",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "nos vemos",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "que puedes hacer",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "para que sirves",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "cuentame sobre el espacio",
+    "intencion": "ninguna"
+  },
+  {
+    "frase": "que noticias hay hoy",
+    "intencion": "ninguna"
+  }
+]
