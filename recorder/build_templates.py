@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 
 from storage import cargar_grabaciones
-from generalizar import generalizar, ErrorGeneralizacion
+from generalist import generalizar, ErrorGeneralizacion
 
 RUTA_PLANTILLAS = Path(__file__).parent / "templates.json"
 

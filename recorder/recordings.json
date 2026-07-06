@@ -14,7 +14,6 @@
         "valor": "enter"
       }
     ],
-    [],
     [
       {
         "tipo": "tecla_especial",
@@ -29,36 +28,5 @@
         "valor": "enter"
       }
     ]
-  ],
-  "abrir_google": [
-    [
-      {
-        "tipo": "tecla_especial",
-        "valor": "win"
-      },
-      {
-        "tipo": "escribir",
-        "valor": "google"
-      },
-      {
-        "tipo": "tecla_especial",
-        "valor": "enter"
-      },
-      {
-        "tipo": "escribir",
-        "valor": "google"
-      },
-      {
-        "tipo": "tecla_especial",
-        "valor": "enter"
-      },
-      {
-        "tipo": "escribir",
-        "valor": "\u0001"
-      }
-    ]
-  ],
-  "abrir discord": [
-    []
   ]
 }

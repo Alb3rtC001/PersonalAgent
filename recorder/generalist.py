@@ -8,11 +8,37 @@ a paso. Todo lo que sea idéntico en todas las grabaciones es la parte
 fija de la plantilla; el único paso que cambie de una grabación a
 otra es, sin ambigüedad, el slot. No hace falta preguntar nada si hay
 2+ grabaciones consistentes entre sí.
+
+Los clics de ratón se comparan con una TOLERANCIA en píxeles (nunca
+haces clic en el pixel exacto dos veces), en vez de exigir coordenadas
+idénticas. Si la posición de un clic varía MÁS que esa tolerancia
+entre grabaciones, no se puede convertir en slot (a diferencia del
+texto escrito): un clic no tiene una forma genérica de sustituirse
+por un valor nuevo cualquiera, así que se informa como no soportado.
 """
+
+TOLERANCIA_PIXELES_CLICK = 15
 
 
 class ErrorGeneralizacion(Exception):
     pass
+
+
+def _clave_comparable(evento: dict):
+    """
+    Devuelve una clave hashable para comparar si dos eventos son
+    'el mismo paso'. Para clics, se agrupa por bloques de píxeles
+    (tolerancia), no por coordenada exacta.
+    """
+    tipo = evento["tipo"]
+    valor = evento["valor"]
+    if tipo == "click":
+        return (
+            valor["boton"],
+            valor["x"] // TOLERANCIA_PIXELES_CLICK,
+            valor["y"] // TOLERANCIA_PIXELES_CLICK,
+        )
+    return valor
 
 
 def generalizar(grabaciones: list[list[dict]]) -> list[dict]:
@@ -44,7 +70,7 @@ def generalizar(grabaciones: list[list[dict]]) -> list[dict]:
     for i in range(longitud):
         eventos_en_posicion_i = [g[i] for g in grabaciones]
         tipos = {e["tipo"] for e in eventos_en_posicion_i}
-        valores = {e["valor"] for e in eventos_en_posicion_i}
+        claves = {_clave_comparable(e) for e in eventos_en_posicion_i}
 
         if len(tipos) > 1:
             raise ErrorGeneralizacion(
@@ -54,12 +80,24 @@ def generalizar(grabaciones: list[list[dict]]) -> list[dict]:
 
         tipo = eventos_en_posicion_i[0]["tipo"]
 
-        if len(valores) == 1:
-            # Idéntico en todas las grabaciones: parte fija.
+        if len(claves) == 1:
+            # Idéntico (o dentro de tolerancia, si es un clic) en todas
+            # las grabaciones: parte fija. Usamos el valor exacto de la
+            # primera grabación como referencia.
             plantilla.append({"tipo": tipo, "valor": eventos_en_posicion_i[0]["valor"]})
         else:
             # Varía entre grabaciones: candidato a slot.
             if tipo != "escribir":
+                if tipo == "click":
+                    raise ErrorGeneralizacion(
+                        f"El paso {i} es un clic en posiciones distintas entre "
+                        "grabaciones (más allá de la tolerancia de "
+                        f"{TOLERANCIA_PIXELES_CLICK}px). No se puede convertir "
+                        "un clic en un slot de texto: si el punto de clic "
+                        "depende del contenido (ej. un contacto en una lista), "
+                        "esto necesita reconocimiento de texto en pantalla (OCR), "
+                        "no la generalización simple que hacemos aquí."
+                    )
                 raise ErrorGeneralizacion(
                     f"El paso {i} varía pero no es de tipo 'escribir' (es '{tipo}'). "
                     "No se puede convertir en slot."
@@ -68,9 +106,12 @@ def generalizar(grabaciones: list[list[dict]]) -> list[dict]:
             indices_variables.add(i)
 
     if len(indices_variables) == 0:
-        raise ErrorGeneralizacion(
-            "Las grabaciones son idénticas, no se detectó ninguna parte variable. "
-            "¿Usaste valores distintos en cada demostración?"
+        print(
+            "Aviso: no se detectó ninguna parte variable entre las grabaciones. "
+            "Se generará una plantilla totalmente fija (sin slot) — correcto "
+            "para acciones como 'cerrar ventana' o 'abrir calendario', donde "
+            "no hace falta ningún dato variable. Si esta acción SÍ debería "
+            "tener un slot, revisa que hayas usado valores distintos al grabar."
         )
     if len(indices_variables) > 1:
         raise ErrorGeneralizacion(
@@ -99,10 +140,10 @@ if __name__ == "__main__":
         print(" ", evento)
 
     print("\n--- Casos de error esperados ---")
-    try:
-        generalizar([grabacion_discord, grabacion_discord])
-    except ErrorGeneralizacion as e:
-        print(f"Grabaciones idénticas -> {e}")
+    print("Grabaciones idénticas (ya no es un error, genera plantilla fija):")
+    plantilla_identica = generalizar([grabacion_discord, grabacion_discord])
+    for evento in plantilla_identica:
+        print(" ", evento)
 
     grabacion_incompleta = [
         {"tipo": "tecla_especial", "valor": "win"},
@@ -122,3 +163,30 @@ if __name__ == "__main__":
         generalizar([grabacion_discord, grabacion_dos_variables])
     except ErrorGeneralizacion as e:
         print(f"Tipo distinto en un paso -> {e}")
+
+    print("\n--- Casos con clic de ratón ---")
+    # Clic en la misma posición (con pequeña variación natural de la mano)
+    grabacion_a = [
+        {"tipo": "click", "valor": {"x": 1850, "y": 1040, "boton": "Button.left", "imagen": ""}},
+        {"tipo": "tecla_especial", "valor": "enter"},
+    ]
+    grabacion_b = [
+        {"tipo": "click", "valor": {"x": 1855, "y": 1038, "boton": "Button.left", "imagen": ""}},
+        {"tipo": "tecla_especial", "valor": "enter"},
+    ]
+    plantilla_click_fijo = generalizar([grabacion_a, grabacion_b])
+    print("Clic casi en el mismo sitio (dentro de tolerancia) -> se trata como FIJO:")
+    for evento in plantilla_click_fijo:
+        print(" ", evento)
+
+    # Clic en posiciones claramente distintas (ej. dos contactos distintos)
+    grabacion_c = [
+        {"tipo": "click", "valor": {"x": 1850, "y": 1040, "boton": "Button.left", "imagen": ""}},
+    ]
+    grabacion_d = [
+        {"tipo": "click", "valor": {"x": 1850, "y": 1200, "boton": "Button.left", "imagen": ""}},
+    ]
+    try:
+        generalizar([grabacion_c, grabacion_d])
+    except ErrorGeneralizacion as e:
+        print(f"\nClic en posiciones muy distintas -> {e}")
