@@ -14,8 +14,8 @@ nueva:
 import json
 from pathlib import Path
 
-from recorder import cargar_grabaciones
-from generalist import generalizar, ErrorGeneralizacion
+from storage import cargar_grabaciones
+from generalizar import generalizar, ErrorGeneralizacion
 
 RUTA_PLANTILLAS = Path(__file__).parent / "templates.json"
 

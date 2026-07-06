@@ -22,7 +22,7 @@ from pathlib import Path
 
 from pynput import keyboard
 
-RUTA_GRABACIONES = Path(__file__).parent / "recordings.json"
+from storage import cargar_grabaciones, guardar_grabacion
 
 # Nota: en Windows, pynput puede reportar la tecla Windows como
 # Key.cmd_l o Key.cmd_r en vez de Key.cmd genérico. Se incluyen las
@@ -72,23 +72,6 @@ class Grabador:
             listener.join()
         self._cerrar_buffer_texto()
         return self._eventos
-
-
-def cargar_grabaciones() -> dict:
-    if not RUTA_GRABACIONES.exists():
-        return {}
-    with open(RUTA_GRABACIONES, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def guardar_grabacion(nombre_accion: str, eventos: list[dict]) -> int:
-    """Añade esta grabación a las que ya hubiera para esa acción. Devuelve el total acumulado."""
-    grabaciones = cargar_grabaciones()
-    grabaciones.setdefault(nombre_accion, [])
-    grabaciones[nombre_accion].append(eventos)
-    with open(RUTA_GRABACIONES, "w", encoding="utf-8") as f:
-        json.dump(grabaciones, f, ensure_ascii=False, indent=2)
-    return len(grabaciones[nombre_accion])
 
 
 if __name__ == "__main__":

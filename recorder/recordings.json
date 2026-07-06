@@ -13,6 +13,21 @@
         "tipo": "tecla_especial",
         "valor": "enter"
       }
+    ],
+    [],
+    [
+      {
+        "tipo": "tecla_especial",
+        "valor": "win"
+      },
+      {
+        "tipo": "escribir",
+        "valor": "discord"
+      },
+      {
+        "tipo": "tecla_especial",
+        "valor": "enter"
+      }
     ]
   ],
   "abrir_google": [
@@ -42,5 +57,8 @@
         "valor": "\u0001"
       }
     ]
+  ],
+  "abrir discord": [
+    []
   ]
 }

@@ -18,16 +18,17 @@ from vocabulary import tokenizar, vectorizar_bow, cargar_vocabulario  # noqa: E4
 from model import cargar_modelo, predecir_proba  # noqa: E402
 from slots import extraer_slot  # noqa: E402
 
-from acctions.open_application import AbrirAplicacion  # noqa: E402
+from acctions.recorded_action import RecordedAction  # noqa: E402
 from acctions.create_note import CrearNota  # noqa: E402
 from config import UMBRAL_CONFIANZA  # noqa: E402
 
 RUTA_VOCAB = RUTA_BASE / "nlu" / "vocabulary.json"
 
-# Registro de acciones disponibles. Añadir una acción nueva es
-# tan simple como crear su clase en acciones/ y añadirla aquí.
+# Registro de acciones disponibles. abrir_aplicacion ya no necesita una
+# clase escrita a mano: usa la plantilla grabada por demostración.
+# Grabar una acción nueva 2 veces es suficiente para añadirla aquí.
 ACCIONES = {
-    "abrir_aplicacion": AbrirAplicacion(),
+    "abrir_aplicacion": RecordedAction("abrir_aplicacion"),
     "crear_nota": CrearNota(),
 }
 
