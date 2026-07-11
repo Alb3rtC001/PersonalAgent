@@ -50,7 +50,7 @@ asistente/
 
 1. Escribes una orden en texto (`"abre aplicacionX"`).
 2. El **clasificador de intención** (modelo PyTorch) decide qué categoría es (`abrir_aplicacion`) y con qué confianza.
-3. Si la confianza es suficiente y la intención no es `"ninguna"`, el **dispatcher** extrae el slot (`"aplicacionX"`) y llama a la acción correspondiente.
+3. Si la confianza es suficiente (confianza > 0,750) y la intención no es `"ninguna"`, el **dispatcher** extrae el slot (`"aplicacionX"`) y llama a la acción correspondiente.
 4. La **acción** carga la plantilla grabada por demostración y la reproduce sustituyendo el hueco `{slot}` por el valor real.
 
 El modelo solo clasifica texto. Todo lo demás es código determinista.
