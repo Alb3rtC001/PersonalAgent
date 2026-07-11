@@ -14,11 +14,11 @@ from pathlib import Path
 RUTA_BASE = Path(__file__).parent
 sys.path.append(str(RUTA_BASE / "nlu"))
 
-from vocabulary import tokenizar, vectorizar_bow, cargar_vocabulario  # noqa: E402
-from model import cargar_modelo, predecir_proba  # noqa: E402
-from slots import extraer_slot  # noqa: E402
+from nlu.vocabulary import tokenizar, vectorizar_bow, cargar_vocabulario  # noqa: E402
+from nlu.model import cargar_modelo, predecir_proba  # noqa: E402
+from nlu.slots import extraer_slot  # noqa: E402
 
-from acctions.recorded_action import RecordedAction  # noqa: E402
+from acctions.recorded_actions import RecordedAction  # noqa: E402
 from acctions.create_note import CrearNota  # noqa: E402
 from config import UMBRAL_CONFIANZA  # noqa: E402
 

@@ -3,29 +3,71 @@
     [
       {
         "tipo": "tecla_especial",
-        "valor": "win"
+        "valor": "win",
+        "timestamp": 1783444621.913412
       },
       {
         "tipo": "escribir",
-        "valor": "steam"
+        "valor": "steam",
+        "timestamp": 1783444625.8793914
       },
       {
         "tipo": "tecla_especial",
-        "valor": "enter"
+        "valor": "enter",
+        "timestamp": 1783444625.879399
       }
     ],
     [
       {
         "tipo": "tecla_especial",
-        "valor": "win"
+        "valor": "win",
+        "timestamp": 1783444662.2644997
       },
       {
         "tipo": "escribir",
-        "valor": "discord"
+        "valor": "discord",
+        "timestamp": 1783444663.87258
       },
       {
         "tipo": "tecla_especial",
-        "valor": "enter"
+        "valor": "enter",
+        "timestamp": 1783444663.8725886
+      }
+    ]
+  ],
+  "nueva_nota": [
+    [
+      {
+        "tipo": "tecla_especial",
+        "valor": "win",
+        "timestamp": 1783444134.297947
+      },
+      {
+        "tipo": "escribir",
+        "valor": "nota rapida",
+        "timestamp": 1783444136.7994547
+      },
+      {
+        "tipo": "tecla_especial",
+        "valor": "enter",
+        "timestamp": 1783444136.7994616
+      }
+    ],
+    [
+      {
+        "tipo": "tecla_especial",
+        "valor": "win",
+        "timestamp": 1783444165.0589833
+      },
+      {
+        "tipo": "escribir",
+        "valor": "notas rapidas",
+        "timestamp": 1783444166.742452
+      },
+      {
+        "tipo": "tecla_especial",
+        "valor": "enter",
+        "timestamp": 1783444166.742459
       }
     ]
   ]

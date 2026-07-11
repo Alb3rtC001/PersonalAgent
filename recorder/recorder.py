@@ -47,7 +47,7 @@ TECLAS_ESPECIALES = {
     keyboard.Key.enter: "enter",
     keyboard.Key.tab: "tab",
     keyboard.Key.esc: "esc",
-    keyboard.Key.space: "espacio",
+    #keyboard.Key.space: "espacio",
 }
 
 TECLA_PARADA = keyboard.Key.f9
@@ -78,6 +78,11 @@ class Grabador:
             if self._mouse_listener:
                 self._mouse_listener.stop()
             return False  # detiene el listener de teclado
+        
+        # La barra espaciadora debe formar parte del texto, no ser un evento independiente.
+        if key == keyboard.Key.space:
+            self._buffer_texto += " "
+            return
 
         if key in TECLAS_ESPECIALES:
             self._cerrar_buffer_texto()

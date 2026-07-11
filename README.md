@@ -10,106 +10,221 @@ Mobile application
 
 ## Roadmap — Sistema de grabación y generalización de acciones
 
-**Importante**: `recorded_action.py` importa `from acctions.base import AccionBase`
-y `from grabador.reproductor import reproducir_plantilla`. Si tu carpeta de
-grabador se llama `recorder` en vez de `grabador`, cambia esa línea de
-import a `from recorder.reproductor import reproducir_plantilla`
-(y renombra `reproductor.py` a `player.py` si quieres mantener todo en
-inglés — solo tendrías que ajustar esa misma línea de import).
+# Asistente Local — Documentación
 
-## 1. Verificar que las grabaciones que ya tienes son correctas
+## Estructura del proyecto
 
-Ya tienes 3 grabaciones de `abrir_aplicacion` en `recordings.json`. Ábrelo
-y comprueba que **al menos 2 de ellas tienen valores DISTINTOS** en el
-evento "escribir" (ej. una dice "discord" y otra "steam"). Si las 3
-dicen lo mismo (ej. las 3 dicen "discord"), `generalizar()` no podrá
-detectar qué parte es el slot — necesitas variedad, no repetición.
+```
+asistente/
+├── config.py               # Configuración global (umbral de confianza, flag de confirmación)
+├── dispatcher.py           # Punto de entrada principal: texto → intención → acción
+├── README.md               # Esta documentación
+├── nlu/                    # Núcleo de comprensión del lenguaje (100% local, sin internet)
+│   ├── dataset.py          # Funciones para gestionar el dataset (agregar_frase, cargar_dataset...)
+│   ├── dataset.json        # Frases de entrenamiento por intención
+│   ├── vocabulary.py       # Tokenizador, vocabulario y vectorización bag-of-words
+│   ├── vocabulary.json     # Vocabulario generado al entrenar (no editar a mano)
+│   ├── model.py            # Arquitectura del clasificador (capa lineal + softmax)
+│   ├── modelo.pt           # Pesos del modelo entrenado (generado por training.py)
+│   ├── training.py         # Bucle de entrenamiento
+│   └── slots.py            # Extracción de slots (qué app, qué contenido de nota...)
+├── acctions/               # Capa de acciones (una clase por tipo de acción)
+│   ├── __init__.py
+│   ├── base.py             # Interfaz común AccionBase
+│   ├── recorded_actions.py # Acción genérica que ejecuta plantillas grabadas
+│   ├── open_application.py # Acción de abrir apps (ahora sustituida por recorded_actions)
+│   └── create_note.py      # Acción de crear notas
+└── recorder/               # Sistema de grabación por demostración
+    ├── recorder.py         # Captura teclado + ratón mientras haces la acción tú mismo
+    ├── storage.py          # Persistencia de grabaciones (recordings.json)
+    ├── build_templates.py  # Generaliza grabaciones en plantillas reutilizables
+    ├── generalizer.py      # Lógica de comparación y detección del slot variable
+    ├── player.py           # Reproduce una plantilla sustituyendo el slot
+    ├── recordings.json     # Grabaciones crudas acumuladas
+    └── templates.json      # Plantillas generalizadas (generado por build_templates.py)
+```
 
-Si te faltan grabaciones con valores distintos, graba una más:
+---
+
+## Cómo funciona el sistema (resumen)
+
+1. Escribes una orden en texto (`"abre aplicacionX"`).
+2. El **clasificador de intención** (modelo PyTorch) decide qué categoría es (`abrir_aplicacion`) y con qué confianza.
+3. Si la confianza es suficiente y la intención no es `"ninguna"`, el **dispatcher** extrae el slot (`"aplicacionX"`) y llama a la acción correspondiente.
+4. La **acción** carga la plantilla grabada por demostración y la reproduce sustituyendo el hueco `{slot}` por el valor real.
+
+El modelo solo clasifica texto. Todo lo demás es código determinista.
+
+---
+
+## Guía de operación: qué hacer después de cada cambio
+
+### 1. Añadiste frases nuevas al dataset (`dataset.json`)
+
+Siempre que uses `agregar_frase()` o edites `dataset.json` a mano:
+
 ```powershell
-cd recorder
-python recorder.py
+python .\nlu\training.py
 ```
-Cuando te pida el nombre de la acción, escribe exactamente `abrir_aplicacion`
-(tiene que coincidir con el nombre de la intención). Abre otra app distinta
-a las ya grabadas (ej. "notepad" o "calculadora"), pulsa F9 al terminar.
 
-## 2. Construir las plantillas
+Esto reconstruye el vocabulario (`vocabulary.json`) y entrena el modelo
+desde cero con los datos actualizados, guardando el resultado en
+`nlu/modelo.pt`. El dispatcher carga el modelo nuevo automáticamente
+la próxima vez que lo inicies.
 
-```powershell
-cd recorder
-python build_templates.py
-```
-Deberías ver algo como:
-```
-'abrir_aplicacion': plantilla generada con 3 grabaciones.
-Guardado en .../templates.json
-```
-Abre `templates.json` y comprueba que el evento "escribir" tiene el
-valor `"{slot}"` (el hueco genérico), y que la tecla "win" y "enter"
-aparecen como pasos fijos.
+**Cuándo entrenar:** no hace falta hacerlo por cada frase suelta.
+Hazlo cuando hayas acumulado un lote (ej. una intención nueva completa,
+o 10-15 frases adicionales).
 
-**Si te da un error de "no se pudo generalizar"**: lee el mensaje, te
-dice exactamente cuál es el problema (número de pasos distinto entre
-grabaciones, o más de una parte variable). Vuelve a grabar la acción
-que falló, siendo más consistente en la secuencia de teclas.
+---
 
-## 3. Ejecutar el dispatcher con la nueva acción genérica
+### 2. Modificaste `slots.py` (añadiste un disparador o un artículo)
+
+No hace falta reentrenar el modelo. `slots.py` no usa IA, son reglas
+de texto puras. Simplemente reinicia el dispatcher:
 
 ```powershell
 python .\dispatcher.py
-> abre discord
-> abre steam
-> abre notion
 ```
-La última (`notion`) es la prueba importante: **nunca la grabaste**, así
-que si funciona, confirma que la generalización realmente funciona para
-valores nuevos, no solo para los que grabaste.
 
-## 4. Qué hacer si algo falla
+---
 
-- **`ModuleNotFoundError: No module named 'pynput'`** al ejecutar
-  `build_templates.py` o `dispatcher.py`: no debería pasar con estos
-  archivos nuevos (ya lo desacoplé), pero si aparece, revisa que no
-  hayas dejado un import antiguo a `grabar.py`/`recorder.py` en algún
-  sitio que no sea `recorder.py` en sí mismo.
-- **El slot sale con basura pegada** (como el caso de "la calculadora"):
-  revisa `slots.py`, puede que falte un artículo o disparador nuevo en
-  las listas `DISPARADORES` / `ARTICULOS_INICIALES`.
-- **La plantilla no reproduce nada / no pasa nada visible**: comprueba
-  que `pyautogui` está instalado (`python -m pip install pyautogui`) y
-  que ninguna otra ventana tiene el foco de forma que intercepte las
-  teclas antes de que se abra el menú Inicio.
+### 3. Grabaste una acción nueva (o repetiste una ya existente)
 
-## 5. Siguientes pasos, en orden de prioridad, cuando tengas tiempo
+```powershell
+# Paso 1: grabar (2+ veces con valores distintos)
+python .\recorder\recorder.py
 
-1. **Grabar `crear_nota` de la misma forma** (si quieres que también use
-   plantillas en vez de código a mano). De momento sigue con
-   `create_note.py` escrito por ti, funciona igual de bien.
-2. **Verificador de éxito**: ahora mismo no comprobamos si la app
-   realmente se abrió. Pendiente para más adelante (ligado a la idea
-   del "verificador" que diseñamos para música).
-3. **Contexto de sesión** para encadenar órdenes (tu ejemplo de
-   WhatsApp: abrir → buscar contacto → llamar). Esto es un componente
-   nuevo, no lo toques hasta tener `abrir_aplicacion` sólido primero.
-4. **Ampliar `DISPARADORES`** en `slots.py` a medida que encuentres
-   frases reales tuyas que no se limpian bien.
-5. Cuando el catálogo de acciones crezca (5+), reentrena el modelo de
-   intención (`python nlu/training.py`) con nuevas frases de ejemplo
-   para cada intención nueva que añadas.
+# Paso 2: construir la plantilla
+python .\recorder\build_templates.py
 
-## 6. Regla general para añadir una acción nueva a partir de ahora
+# Paso 3: añadir al dispatcher (solo si la intención es completamente nueva)
+# En dispatcher.py, añade dentro de ACCIONES:
+# "nombre_nueva_intencion": RecordedAction("nombre_nueva_intencion"),
 
-1. Añade ~30 frases de ejemplo de esa intención a `dataset.json`
-   (usando `agregar_frase` o editándolo).
-2. Reentrena: `python nlu/training.py`.
-3. Graba la acción 2+ veces con `recorder.py`, con valores distintos.
-4. Ejecuta `build_templates.py`.
-5. Añade una línea en `dispatcher.py`:
-   ```python
-   ACCIONES["nombre_nueva_intencion"] = RecordedAction("nombre_nueva_intencion")
-   ```
-6. Prueba con el dispatcher, incluyendo un valor que NUNCA grabaste.
+# Paso 4: probar
+python .\dispatcher.py
+```
 
-Con esto ya no hace falta escribir una clase Python nueva por cada
-acción basada en teclado — solo dataset + grabación.
+Si la acción ya existía (solo añadiste más grabaciones para mejorarla),
+los pasos 2 y 4 son suficientes — no hace falta tocar el dispatcher.
+
+---
+
+### 4. Añadiste una intención nueva de principio a fin
+
+Este es el flujo completo, de punta a punta:
+
+```powershell
+# 1. Añade ~30 frases de ejemplo al dataset
+#    (edita dataset.json o usa agregar_frase() desde Python)
+
+# 2. Reentrena el modelo
+python .\nlu\training.py
+
+# 3. Añade los disparadores de la nueva intención en nlu/slots.py
+#    (los verbos y frases que hay que quitar para extraer el slot)
+
+# 4. Graba la acción 2+ veces con valores distintos
+python .\recorder\recorder.py
+
+# 5. Construye la plantilla
+python .\recorder\build_templates.py
+
+# 6. Registra la acción en dispatcher.py
+#    ACCIONES["nombre_nueva_intencion"] = RecordedAction("nombre_nueva_intencion")
+
+# 7. Prueba
+python .\dispatcher.py
+```
+
+---
+
+### 5. Algo falla y no sabes dónde
+
+Sigue este orden de diagnóstico:
+
+**¿El modelo clasifica bien la intención?**
+```powershell
+python .\nlu\training.py
+# Mira las predicciones de las frases de prueba al final del output
+```
+
+**¿El slot se extrae bien?**
+```python
+# Abre un terminal Python y prueba manualmente:
+from nlu.slots import extraer_slot
+print(extraer_slot("tu frase aquí", "nombre_intencion"))
+```
+
+**¿La plantilla existe y tiene la forma correcta?**
+Abre `recorder/templates.json` y comprueba que:
+- La intención está presente como clave.
+- El evento `"escribir"` que debería variar dice `"{slot}"` (con llaves).
+- Los demás eventos son los pasos fijos que grabaste.
+
+**¿El slot llega sucio a la plantilla?**
+Casi siempre significa que falta un disparador en `slots.py`.
+Añade la forma verbal o frase que no se está limpiando y reinicia
+el dispatcher (sin reentrenar).
+
+**¿Las grabaciones no generalizan?**
+Los errores más comunes de `build_templates.py`:
+- _"Distinto número de pasos"_: fuiste más o menos consistente en
+  la secuencia de teclas entre grabaciones. Borra las grabaciones
+  problemáticas de `recordings.json` y graba de nuevo.
+- _"Se detectaron 2 partes variables"_: cambiaste más de una cosa
+  entre grabaciones (ej. en `nueva_nota` grabaste `"nota rapida"` y
+  `"notas rapidas"` — ambas palabras cambiaron). Asegúrate de cambiar
+  solo el slot entre grabaciones, no la secuencia entera.
+
+---
+
+### Referencia rápida
+
+| Cambio realizado | Reentrenar modelo | Rebuild plantillas | Reiniciar dispatcher |
+|---|:---:|:---:|:---:|
+| Frases nuevas en dataset | ✅ Sí | ❌ No | ✅ Sí |
+| Disparador nuevo en slots.py | ❌ No | ❌ No | ✅ Sí |
+| Grabación nueva de acción existente | ❌ No | ✅ Sí | ✅ Sí |
+| Intención nueva de cero | ✅ Sí | ✅ Sí | ✅ Sí + editar dispatcher.py |
+| Solo cambio en config.py (umbral) | ❌ No | ❌ No | ✅ Sí |
+
+---
+
+## Siguientes pasos pendientes (por orden de prioridad)
+
+1. **Verificador de éxito**: comprobar si la app realmente se abrió
+   tras ejecutar la plantilla (usando `pygetwindow` para detectar si
+   apareció una ventana nueva). Ligado al "verificador" diseñado
+   también para música.
+2. **Contexto de sesión**: encadenar órdenes consecutivas que dependen
+   unas de otras (ej. `"abre whatsapp"` → `"busca Mama"` → `"llama"`).
+   Requiere un diccionario de estado compartido con caducidad por tiempo
+   y por cambio de dominio.
+3. **Ampliar `DISPARADORES`** en `slots.py` a medida que encuentres
+   frases reales que no se limpian bien.
+4. Cuando el catálogo de acciones crezca a 5+, reentrena el modelo con
+   nuevas frases de ejemplo para cada intención nueva.
+5. **OCR para clics variables**: para acciones donde el punto de clic
+   depende del contenido de la pantalla (ej. seleccionar un contacto
+   en una lista), se necesita reconocimiento de texto en pantalla.
+   Candidato: `pytesseract` o `easyocr`, ambos 100% locales.
+
+---
+
+## Notas de diseño importantes
+
+- **El modelo solo clasifica, no ejecuta**: el modelo de PyTorch solo
+  decide a qué categoría pertenece la frase. Todo lo que ocurre después
+  (extraer slot, cargar plantilla, reproducir teclas) es código
+  determinista, sin IA.
+- **Añadir una acción nueva no requiere escribir código**: solo dataset
+  + grabación + `build_templates.py`. El dispatcher la recoge
+  automáticamente via `RecordedAction`.
+- **Slots vs. sub-intenciones**: si el código que se ejecuta es el mismo
+  y solo cambia un valor (qué app, qué canción), es un slot. Si el
+  código es distinto (abrir vs. cerrar), son intenciones separadas.
+- **Sin modelos externos**: todo el sistema es 100% local. El único
+  componente que puede usar internet es la acción concreta que lo
+  necesite (ej. buscar en YouTube), nunca el núcleo NLU.

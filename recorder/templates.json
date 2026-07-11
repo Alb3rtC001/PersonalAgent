@@ -1,1 +1,30 @@
-{}
+{
+  "nueva_nota": [
+    {
+      "tipo": "tecla_especial",
+      "valor": "win"
+    },
+    {
+      "tipo": "escribir",
+      "valor": "{slot}"
+    },
+    {
+      "tipo": "tecla_especial",
+      "valor": "enter"
+    }
+  ],
+  "abrir_aplicacion": [
+    {
+      "tipo": "tecla_especial",
+      "valor": "win"
+    },
+    {
+      "tipo": "escribir",
+      "valor": "{slot}"
+    },
+    {
+      "tipo": "tecla_especial",
+      "valor": "enter"
+    }
+  ]
+}

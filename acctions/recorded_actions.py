@@ -12,9 +12,9 @@ import json
 from pathlib import Path
 
 from acctions.base import AccionBase
-from recorder.reproductor import reproducir_plantilla
+from recorder.player import reproducir_plantilla
 
-RUTA_PLANTILLAS = Path(__file__).parent.parent / "grabador" / "templates.json"
+RUTA_PLANTILLAS = Path(__file__).parent.parent / "recorder" / "templates.json"
 
 
 def cargar_plantilla(nombre_accion: str):

@@ -23,7 +23,8 @@ DISPARADORES = {
     "abrir_aplicacion": [
         "hazme el favor de abrir", "puedes abrirme", "puedes abrir",
         "quiero abrir", "necesito abrir", "pon en marcha", "me abres",
-        "abreme", "abre", "inicia", "ejecuta", "lanza", "arranca",
+        "abreme", "abrir", "abre", "inicia", "iniciar", "ejecuta",
+        "ejecutar", "lanza", "lanzar", "arranca", "arrancar",
         "por favor",
     ],
     "crear_nota": [
