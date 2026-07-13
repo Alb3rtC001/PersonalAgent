@@ -2,13 +2,13 @@
 * La idea principal es crear una IA local que no dependa de internet creando un modelo própio y se adecue a las acciones personalizadas para el usuario.
 Actualmente 
 
-# Step 1:
+# Cómo se quiere afrontar el proyecto y sus pasos a seguir (de mforma generalísta)
+
+## (Poyecto 1):
 PC application
 
-# Step 2:
+## (Proyecto 2):
 Mobile application 
-
-## Roadmap — Sistema de grabación y generalización de acciones
 
 # Asistente Local — Documentación
 
@@ -19,6 +19,7 @@ asistente/
 ├── config.py               # Configuración global (umbral de confianza, flag de confirmación)
 ├── dispatcher.py           # Punto de entrada principal: texto → intención → acción
 ├── add_phrases.py          # Utilidad para añadir frases al dataset (ver sección más abajo)
+├── requirements.txt        # Imports realizados para el proyecto necesarios para funcionar 
 ├── README.md               # Esta documentación
 ├── nlu/                    # Núcleo de comprensión del lenguaje (100% local, sin internet)
 │   ├── dataset.py          # Funciones para gestionar el dataset (agregar_frase, cargar_dataset...)
@@ -49,14 +50,16 @@ asistente/
 
 ## Cómo funciona el sistema (resumen)
 
-1. Escribes una orden en texto (`"abre aplicacionX"`).
+1. Escribes una orden en texto (`"abre aplicacion X"`). __Mas adelante será con Voz__
 2. El **clasificador de intención** (modelo PyTorch) decide qué categoría es (`abrir_aplicacion`) y con qué confianza.
-3. Si la confianza es suficiente (confianza > 0,750) y la intención no es `"ninguna"`, el **dispatcher** extrae el slot (`"aplicacionX"`) y llama a la acción correspondiente.
-4. La **acción** carga la plantilla grabada por demostración y la reproduce sustituyendo el hueco `{slot}` por el valor real.
+3. Si la confianza es suficiente (confianza > 0,750) y la intención no es `"ninguna"`, el **dispatcher** extrae el slot (`"aplicacion X"`) y llama a la acción correspondiente.
+4. La **acción** carga la plantilla grabada por demostración y la reproduce sustituyendo el hueco `{slot}` por el valor real. __A matizar y generar la acción con otro modelo__
 
-El modelo solo clasifica texto. Todo lo demás es código determinista.
+De momento el modelo solo clasifica texto. El resto provisionalmente es código determinista.
 
 ---
+
+## Roadmap — Sistema de grabación y generalización de acciones
 
 ## Añadir frases al dataset (`add_phrases.py`)
 
