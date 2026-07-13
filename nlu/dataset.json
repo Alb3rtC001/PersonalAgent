@@ -288,6 +288,10 @@
     "intencion": "crear_nota"
   },
   {
+    "frase": "quiero crear una nueva nota",
+    "intencion": "crear_nota"
+  },
+  {
     "frase": "que tiempo hace hoy",
     "intencion": "ninguna"
   },

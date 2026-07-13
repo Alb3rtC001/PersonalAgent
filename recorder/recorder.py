@@ -105,7 +105,8 @@ class Grabador:
             ruta = CARPETA_CAPTURAS / nombre
             pyautogui.screenshot(region=region).save(ruta)
             return str(ruta.relative_to(Path(__file__).parent))
-        except Exception:
+        except Exception as e:
+            print(f"Error capturado en _capturar_recorte: {e}")
             return ""  # si falla la captura, seguimos solo con coordenadas
 
     def _on_click(self, x, y, button, pressed):

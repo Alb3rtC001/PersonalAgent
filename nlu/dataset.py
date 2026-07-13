@@ -42,9 +42,10 @@ def guardar_dataset(dataset: list[tuple[str, str]], ruta: Path = RUTA_DATASET) -
 
 def agregar_frase(frase: str, intencion: str, ruta: Path = RUTA_DATASET) -> bool:
     """
-    Añade una frase nueva al dataset y la guarda en disco.
-    Evita duplicados exactos (misma frase + misma intención).
-    Devuelve True si se añadió, False si ya existía.
+    Añade una frase nueva al dataset justo después de las que ya
+    existen para esa misma intención. Si la intención no existe
+    todavía, la añade al final.
+    Evita duplicados exactos. Devuelve True si se añadió, False si ya existía.
     """
     dataset = cargar_dataset(ruta)
     frase = frase.strip().lower()
@@ -52,7 +53,19 @@ def agregar_frase(frase: str, intencion: str, ruta: Path = RUTA_DATASET) -> bool
     if (frase, intencion) in dataset:
         return False
 
-    dataset.append((frase, intencion))
+    # Buscar el último índice donde aparece esta intención
+    ultimo_idx = -1
+    for i, (_, intent) in enumerate(dataset):
+        if intent == intencion:
+            ultimo_idx = i
+
+    if ultimo_idx == -1:
+        # Intención nueva: añadir al final
+        dataset.append((frase, intencion))
+    else:
+        # Insertar justo después del último elemento de esa intención
+        dataset.insert(ultimo_idx + 1, (frase, intencion))
+
     guardar_dataset(dataset, ruta)
     return True
 

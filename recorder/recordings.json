@@ -33,6 +33,53 @@
         "valor": "enter",
         "timestamp": 1783444663.8725886
       }
+    ],
+    [
+      {
+        "tipo": "tecla_especial",
+        "valor": "win",
+        "timestamp": 1783964850.9888659
+      },
+      {
+        "tipo": "escribir",
+        "valor": "steam",
+        "timestamp": 1783964852.2457728
+      },
+      {
+        "tipo": "tecla_especial",
+        "valor": "enter",
+        "timestamp": 1783964852.2457802
+      },
+      {
+        "tipo": "click",
+        "valor": {
+          "x": 883,
+          "y": 15,
+          "boton": "Button.left",
+          "imagen": ""
+        },
+        "timestamp": 1783964854.6293135
+      },
+      {
+        "tipo": "click",
+        "valor": {
+          "x": 883,
+          "y": 15,
+          "boton": "Button.left",
+          "imagen": ""
+        },
+        "timestamp": 1783964854.7674904
+      },
+      {
+        "tipo": "click",
+        "valor": {
+          "x": 170,
+          "y": 184,
+          "boton": "Button.left",
+          "imagen": ""
+        },
+        "timestamp": 1783964856.7129421
+      }
     ]
   ],
   "nueva_nota": [
@@ -68,6 +115,60 @@
         "tipo": "tecla_especial",
         "valor": "enter",
         "timestamp": 1783444166.742459
+      }
+    ]
+  ],
+  "abrir_juego": [
+    [
+      {
+        "tipo": "tecla_especial",
+        "valor": "win",
+        "timestamp": 1783965018.119444
+      },
+      {
+        "tipo": "escribir",
+        "valor": "steam,",
+        "timestamp": 1783965020.677496
+      },
+      {
+        "tipo": "tecla_especial",
+        "valor": "enter",
+        "timestamp": 1783965020.6775062
+      },
+      {
+        "tipo": "click",
+        "valor": {
+          "x": 151,
+          "y": 174,
+          "boton": "Button.left",
+          "imagen": ""
+        },
+        "timestamp": 1783965023.6075554
+      },
+      {
+        "tipo": "escribir",
+        "valor": "destiny 2",
+        "timestamp": 1783965027.4814534
+      },
+      {
+        "tipo": "click",
+        "valor": {
+          "x": 98,
+          "y": 248,
+          "boton": "Button.left",
+          "imagen": ""
+        },
+        "timestamp": 1783965027.481697
+      },
+      {
+        "tipo": "click",
+        "valor": {
+          "x": 486,
+          "y": 432,
+          "boton": "Button.left",
+          "imagen": ""
+        },
+        "timestamp": 1783965029.990642
       }
     ]
   ]

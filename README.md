@@ -18,6 +18,7 @@ Mobile application
 asistente/
 ├── config.py               # Configuración global (umbral de confianza, flag de confirmación)
 ├── dispatcher.py           # Punto de entrada principal: texto → intención → acción
+├── add_phrases.py          # Utilidad para añadir frases al dataset (ver sección más abajo)
 ├── README.md               # Esta documentación
 ├── nlu/                    # Núcleo de comprensión del lenguaje (100% local, sin internet)
 │   ├── dataset.py          # Funciones para gestionar el dataset (agregar_frase, cargar_dataset...)
@@ -56,6 +57,72 @@ asistente/
 El modelo solo clasifica texto. Todo lo demás es código determinista.
 
 ---
+
+## Añadir frases al dataset (`add_phrases.py`)
+
+`add_phrases.py` tiene tres modos de uso. Las frases nuevas siempre se
+insertan **justo después de las que ya existen para esa misma intención**
+(no al final del archivo), y se detectan duplicados automáticamente.
+
+### Modo 1 — Una sola frase (interactivo)
+
+```powershell
+python .\add_phrases.py
+```
+
+Te muestra las intenciones existentes numeradas, eliges una (o escribes
+una nueva), y luego escribes la frase. Útil para añadir algo puntual
+sin tener que editar ningún archivo.
+
+### Modo 2 — Varias frases desde un JSON externo
+
+```powershell
+python .\add_phrases.py .\mis_frases.json
+```
+
+El archivo JSON debe tener el mismo formato que `dataset.json`:
+
+```json
+[
+  {"frase": "abre notion", "intencion": "abrir_aplicacion"},
+  {"frase": "nueva nota rapida", "intencion": "crear_nota"}
+]
+```
+
+Útil cuando quieres preparar un lote de frases fuera y luego importarlas
+de golpe. Las entradas incompletas (sin frase o sin intención) se
+ignoran con un aviso, sin interrumpir el resto de la importación.
+
+### Modo 3 — Lista hardcodeada (histórico)
+
+Edita la lista `FRASES_NUEVAS` dentro de `add_phrases.py` y ejecuta:
+
+```powershell
+python .\add_phrases.py
+```
+
+Se activa automáticamente cuando `FRASES_NUEVAS` no está vacía.
+Útil si quieres dejar constancia en el propio archivo de qué frases
+añadiste y cuándo.
+
+### Output de ejemplo
+
+```
+Añadiendo 2 frase(s)...
+
+  [OK] 'abre notion' -> abrir_aplicacion
+  [YA EXISTÍA] 'abre discord' -> abrir_aplicacion
+
+1 frase(s) nueva(s) añadidas de 2 procesadas.
+
+Totales por intención:
+  abrir_aplicacion: 38 frases
+  crear_nota: 40 frases
+  ninguna: 35 frases
+
+Recuerda reentrenar el modelo:
+  python .\nlu\training.py
+```
 
 ## Guía de operación: qué hacer después de cada cambio
 
@@ -182,13 +249,14 @@ Los errores más comunes de `build_templates.py`:
 
 ### Referencia rápida
 
-| Cambio realizado | Reentrenar modelo | Rebuild plantillas | Reiniciar dispatcher |
-|---|:---:|:---:|:---:|
-| Frases nuevas en dataset | ✅ Sí | ❌ No | ✅ Sí |
-| Disparador nuevo en slots.py | ❌ No | ❌ No | ✅ Sí |
-| Grabación nueva de acción existente | ❌ No | ✅ Sí | ✅ Sí |
-| Intención nueva de cero | ✅ Sí | ✅ Sí | ✅ Sí + editar dispatcher.py |
-| Solo cambio en config.py (umbral) | ❌ No | ❌ No | ✅ Sí |
+| Cambios realizados                  | Reentrenar modelo   | Rebuild plantillas  |      Reiniciar dispatcher       |
+| ----------------------------------- | :----------------:  | :----------------:  | :---------------------------:   |
+| Frases nuevas en dataset            |        ✅ Sí       |        ❌ No        |              ✅ Sí             |
+| Disparador nuevo en `slots.py`      |        ❌ No       |        ❌ No        |              ✅ Sí             |
+| Grabación nueva de acción existente |        ❌ No       |        ✅ Sí        |              ✅ Sí             |
+| Intención nueva desde cero          |        ✅ Sí       |        ✅ Sí        | ✅ Sí + editar `dispatcher.py` |
+| Solo cambio en `config.py` (umbral) |        ❌ No       |        ❌ No        |              ✅ Sí             |
+
 
 ---
 

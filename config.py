@@ -14,3 +14,6 @@ UMBRAL_CONFIANZA = 0.75
 # de una plantilla grabada, pregunta al usuario para confirmarlo.
 # Ponlo a False cuando confíes en que la detección funciona bien sola.
 CONFIRMAR_SLOT_DETECTADO = True
+
+SCREENRESOLUTION_X = 0
+SCREENRESOLUTION_Y = 0
