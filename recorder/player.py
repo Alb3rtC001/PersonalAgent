@@ -22,22 +22,9 @@ CONFIANZA_IMAGEN = 0.8  # requiere opencv-python instalado para usarse
 
 
 def _reproducir_click(datos_click: dict) -> None:
-    x, y = datos_click["x"], datos_click["y"]
-    ruta_imagen = datos_click.get("imagen")
-
-    if ruta_imagen and Path(ruta_imagen).exists():
-        try:
-            posicion = pyautogui.locateCenterOnScreen(ruta_imagen, confidence=CONFIANZA_IMAGEN)
-        except Exception:
-            # Sin opencv instalado, o cualquier otro fallo de coincidencia:
-            # seguimos con el Plan B (coordenadas fijas) sin interrumpir.
-            posicion = None
-
-        if posicion is not None:
-            pyautogui.click(posicion)
-            return
-
-    # Plan B: la imagen no coincidió (o no había), usamos la coordenada grabada.
+    # Soporte tanto del formato nuevo (x_abs) como del viejo (x) por compatibilidad
+    x = datos_click.get("x_abs", datos_click.get("x", 0))
+    y = datos_click.get("y_abs", datos_click.get("y", 0))
     pyautogui.click(x, y)
 
 

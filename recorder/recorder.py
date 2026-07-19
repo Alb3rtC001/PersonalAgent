@@ -26,6 +26,16 @@ pixel a pixel; con opencv permite tolerancia, mucho más robusto)
 import threading
 import time
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from config import MONITORES
+
+try:
+    from window_manager import obtener_contexto_click
+    WINDOW_MANAGER_DISPONIBLE = True
+except ImportError:
+    WINDOW_MANAGER_DISPONIBLE = False
 
 from pynput import keyboard, mouse
 
@@ -51,9 +61,6 @@ TECLAS_ESPECIALES = {
 }
 
 TECLA_PARADA = keyboard.Key.f9
-
-CARPETA_CAPTURAS = Path(__file__).parent / "capturas"
-TAMANO_RECORTE = 40  # píxeles de lado del recorte alrededor del clic
 
 
 class Grabador:
@@ -93,30 +100,30 @@ class Grabador:
             except AttributeError:
                 pass  # tecla no imprimible que no nos interesa (shift, ctrl...)
 
-    def _capturar_recorte(self, x: int, y: int) -> str:
-        """Guarda un recorte de pantalla alrededor del clic. Devuelve la ruta relativa, o "" si falla."""
-        if not PYAUTOGUI_DISPONIBLE:
-            return ""
-        try:
-            CARPETA_CAPTURAS.mkdir(exist_ok=True)
-            mitad = TAMANO_RECORTE // 2
-            region = (max(0, x - mitad), max(0, y - mitad), TAMANO_RECORTE, TAMANO_RECORTE)
-            nombre = f"click_{int(time.time() * 1000)}.png"
-            ruta = CARPETA_CAPTURAS / nombre
-            pyautogui.screenshot(region=region).save(ruta)
-            return str(ruta.relative_to(Path(__file__).parent))
-        except Exception as e:
-            print(f"Error capturado en _capturar_recorte: {e}")
-            return ""  # si falla la captura, seguimos solo con coordenadas
-
     def _on_click(self, x, y, button, pressed):
         if not pressed:
-            return  # solo nos interesa el momento de pulsar, no de soltar
+            return
         self._cerrar_buffer_texto()
-        ruta_imagen = self._capturar_recorte(x, y)
+
+        if WINDOW_MANAGER_DISPONIBLE:
+            contexto = obtener_contexto_click(x, y, MONITORES)
+        else:
+            contexto = {
+                "ventana": {"titulo": "desconocido", "monitor": 0},
+                "click": {"x_abs": x, "y_abs": y, "x_rel": None, "y_rel": None, "monitor": 0},
+            }
+
         self._agregar_evento({
             "tipo": "click",
-            "valor": {"x": x, "y": y, "boton": str(button), "imagen": ruta_imagen},
+            "valor": {
+                "x_abs": x,
+                "y_abs": y,
+                "x_rel": contexto["click"]["x_rel"],
+                "y_rel": contexto["click"]["y_rel"],
+                "boton": str(button),
+                "monitor": contexto["click"]["monitor"],
+                "ventana": contexto["ventana"],
+            },
         })
 
     def grabar(self) -> list[dict]:
