@@ -1,6 +1,0 @@
-# Model keep the old version
-*.pt
-.gitignore
-.\recorder\recordings.backup.json
-.\recorder\recordings.backup2.json
-.\recorder\recordings.json

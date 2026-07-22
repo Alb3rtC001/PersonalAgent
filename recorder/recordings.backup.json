@@ -12,8 +12,33 @@
         "timestamp": 1784662360.8609672
       },
       {
-        "tipo": "tecla_especial",
-        "valor": "enter"
+        "tipo": "click",
+        "valor": {
+          "x_abs": 743,
+          "y_abs": 346,
+          "x_rel": 212,
+          "y_rel": 204,
+          "boton": "Button.left",
+          "monitor": 0,
+          "ventana": {
+            "titulo": "Buscar",
+            "proceso": "SearchHost.exe",
+            "pid": 15044,
+            "monitor": 0,
+            "maximizada": false,
+            "minimizada": false,
+            "rect": {
+              "left": 531,
+              "top": 142,
+              "right": 1389,
+              "bottom": 1032
+            },
+            "width": 858,
+            "height": 890,
+            "timestamp": 1784662360.8614326
+          }
+        },
+        "timestamp": 1784662360.8614511
       }
     ],
     [
@@ -28,8 +53,33 @@
         "timestamp": 1784662406.8663259
       },
       {
-        "tipo": "tecla_especial",
-        "valor": "enter"
+        "tipo": "click",
+        "valor": {
+          "x_abs": 656,
+          "y_abs": 363,
+          "x_rel": 125,
+          "y_rel": 221,
+          "boton": "Button.left",
+          "monitor": 0,
+          "ventana": {
+            "titulo": "Buscar",
+            "proceso": "SearchHost.exe",
+            "pid": 15044,
+            "monitor": 0,
+            "maximizada": false,
+            "minimizada": false,
+            "rect": {
+              "left": 531,
+              "top": 142,
+              "right": 1389,
+              "bottom": 1032
+            },
+            "width": 858,
+            "height": 890,
+            "timestamp": 1784662406.867329
+          }
+        },
+        "timestamp": 1784662406.8673675
       }
     ],
     [
@@ -44,182 +94,12 @@
         "timestamp": 1784663240.1797724
       },
       {
-        "tipo": "tecla_especial",
-        "valor": "enter"
-      }
-    ]
-  ],
-  "nueva_nota_via_enter": [
-    [
-      {
-        "tipo": "tecla_especial",
-        "valor": "win",
-        "timestamp": 1784662437.4069417
-      },
-      {
-        "tipo": "escribir",
-        "valor": "notas rapidas",
-        "timestamp": 1784662441.1210163
-      },
-      {
-        "tipo": "tecla_especial",
-        "valor": "enter",
-        "timestamp": 1784662441.121023
-      },
-      {
         "tipo": "click",
         "valor": {
-          "x_abs": 3260,
-          "y_abs": 148,
-          "x_rel": 29,
-          "y_rel": 19,
-          "boton": "Button.left",
-          "monitor": 1,
-          "ventana": {
-            "titulo": "Notas rápidas",
-            "proceso": "ApplicationFrameHost.exe",
-            "pid": 9496,
-            "monitor": 1,
-            "maximizada": false,
-            "minimizada": false,
-            "rect": {
-              "left": 3231,
-              "top": 129,
-              "right": 3470,
-              "bottom": 818
-            },
-            "width": 239,
-            "height": 689,
-            "timestamp": 1784662443.368255
-          }
-        },
-        "timestamp": 1784662443.3682666
-      },
-      {
-        "tipo": "click",
-        "valor": {
-          "x_abs": 3523,
-          "y_abs": 198,
-          "x_rel": 59,
-          "y_rel": 69,
-          "boton": "Button.left",
-          "monitor": 1,
-          "ventana": {
-            "titulo": "Notas rápidas",
-            "proceso": "ApplicationFrameHost.exe",
-            "pid": 9496,
-            "monitor": 1,
-            "maximizada": false,
-            "minimizada": false,
-            "rect": {
-              "left": 3464,
-              "top": 129,
-              "right": 3703,
-              "bottom": 818
-            },
-            "width": 239,
-            "height": 689,
-            "timestamp": 1784662444.834122
-          }
-        },
-        "timestamp": 1784662444.8341362
-      }
-    ],
-    [
-      {
-        "tipo": "tecla_especial",
-        "valor": "win",
-        "timestamp": 1784662567.030222
-      },
-      {
-        "tipo": "escribir",
-        "valor": "notas rapid",
-        "timestamp": 1784662569.833107
-      },
-      {
-        "tipo": "tecla_especial",
-        "valor": "enter",
-        "timestamp": 1784662569.833114
-      },
-      {
-        "tipo": "click",
-        "valor": {
-          "x_abs": 3264,
-          "y_abs": 149,
-          "x_rel": 33,
-          "y_rel": 20,
-          "boton": "Button.left",
-          "monitor": 1,
-          "ventana": {
-            "titulo": "Notas rápidas",
-            "proceso": "ApplicationFrameHost.exe",
-            "pid": 9496,
-            "monitor": 1,
-            "maximizada": false,
-            "minimizada": false,
-            "rect": {
-              "left": 3231,
-              "top": 129,
-              "right": 3470,
-              "bottom": 818
-            },
-            "width": 239,
-            "height": 689,
-            "timestamp": 1784662572.9932742
-          }
-        },
-        "timestamp": 1784662572.9932847
-      },
-      {
-        "tipo": "click",
-        "valor": {
-          "x_abs": 3524,
-          "y_abs": 217,
-          "x_rel": 60,
-          "y_rel": 88,
-          "boton": "Button.left",
-          "monitor": 1,
-          "ventana": {
-            "titulo": "Notas rápidas",
-            "proceso": "ApplicationFrameHost.exe",
-            "pid": 9496,
-            "monitor": 1,
-            "maximizada": false,
-            "minimizada": false,
-            "rect": {
-              "left": 3464,
-              "top": 129,
-              "right": 3703,
-              "bottom": 818
-            },
-            "width": 239,
-            "height": 689,
-            "timestamp": 1784662574.2713645
-          }
-        },
-        "timestamp": 1784662574.2713773
-      }
-    ]
-  ],
-  "nueva_nota_via_click": [
-    [
-      {
-        "tipo": "tecla_especial",
-        "valor": "win",
-        "timestamp": 1784662501.5741365
-      },
-      {
-        "tipo": "escribir",
-        "valor": "nota rapida",
-        "timestamp": 1784662505.1812289
-      },
-      {
-        "tipo": "click",
-        "valor": {
-          "x_abs": 687,
-          "y_abs": 335,
-          "x_rel": 156,
-          "y_rel": 193,
+          "x_abs": 677,
+          "y_abs": 351,
+          "x_rel": 146,
+          "y_rel": 209,
           "boton": "Button.left",
           "monitor": 0,
           "ventana": {
@@ -237,54 +117,15 @@
             },
             "width": 858,
             "height": 890,
-            "timestamp": 1784662505.1818964
+            "timestamp": 1784663240.180176
           }
         },
-        "timestamp": 1784662505.1819274
-      }
-    ],
-    [
-      {
-        "tipo": "tecla_especial",
-        "valor": "win",
-        "timestamp": 1784662593.5761347
-      },
-      {
-        "tipo": "escribir",
-        "valor": "notas rapi",
-        "timestamp": 1784662597.3721495
-      },
-      {
-        "tipo": "click",
-        "valor": {
-          "x_abs": 698,
-          "y_abs": 335,
-          "x_rel": 167,
-          "y_rel": 193,
-          "boton": "Button.left",
-          "monitor": 0,
-          "ventana": {
-            "titulo": "Buscar",
-            "proceso": "SearchHost.exe",
-            "pid": 15044,
-            "monitor": 0,
-            "maximizada": false,
-            "minimizada": false,
-            "rect": {
-              "left": 531,
-              "top": 142,
-              "right": 1389,
-              "bottom": 1032
-            },
-            "width": 858,
-            "height": 890,
-            "timestamp": 1784662597.37265
-          }
-        },
-        "timestamp": 1784662597.3726687
+        "timestamp": 1784663240.1801922
       }
     ]
   ],
+  "nueva_nota_via_enter": [],
+  "nueva_nota_via_click": [],
   "ejecutar_en_steam": [
     [
       {
@@ -648,5 +489,72 @@
         "timestamp": 1784662695.0512655
       }
     ]
-  ]
+  ],
+  "abrir_aplicacion_via_click": {
+    "tolerancia_px": 200,
+    "grabaciones": [
+      [
+        {
+          "tipo": "click",
+          "valor": {
+            "x_abs": 1186,
+            "y_abs": 1069,
+            "x_rel": 1194,
+            "y_rel": 1077,
+            "boton": "Button.left",
+            "monitor": 0,
+            "ventana": {
+              "titulo": "build_templates.py - Machine Learning - Visual Studio Code",
+              "proceso": "Code.exe",
+              "pid": 4460,
+              "monitor": 0,
+              "maximizada": true,
+              "minimizada": false,
+              "rect": {
+                "left": -8,
+                "top": -8,
+                "right": 1928,
+                "bottom": 1040
+              },
+              "width": 1936,
+              "height": 1048,
+              "timestamp": 1784746366.974408
+            }
+          },
+          "timestamp": 1784746366.9744468
+        }
+      ],
+      [
+        {
+          "tipo": "click",
+          "valor": {
+            "x_abs": 1234,
+            "y_abs": 1069,
+            "x_rel": 1242,
+            "y_rel": 1077,
+            "boton": "Button.left",
+            "monitor": 0,
+            "ventana": {
+              "titulo": "build_templates.py - Machine Learning - Visual Studio Code",
+              "proceso": "Code.exe",
+              "pid": 4460,
+              "monitor": 0,
+              "maximizada": true,
+              "minimizada": false,
+              "rect": {
+                "left": -8,
+                "top": -8,
+                "right": 1928,
+                "bottom": 1040
+              },
+              "width": 1936,
+              "height": 1048,
+              "timestamp": 1784746385.6899898
+            }
+          },
+          "timestamp": 1784746385.6900194
+        }
+      ]
+    ]
+  }
 }
