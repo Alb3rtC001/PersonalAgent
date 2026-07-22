@@ -26,5 +26,287 @@
       "tipo": "tecla_especial",
       "valor": "enter"
     }
+  ],
+  "ejecutar_en_steam": [
+    {
+      "tipo": "click",
+      "valor": {
+        "boton": "Button.left",
+        "ventana": {
+          "titulo": "",
+          "proceso": "explorer.exe",
+          "pid": 10000,
+          "monitor": 0,
+          "maximizada": false,
+          "minimizada": false,
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "width": 1920,
+          "height": 1080,
+          "timestamp": 1784662657.580755
+        },
+        "x_rel": 291,
+        "y_rel": 70
+      }
+    },
+    {
+      "tipo": "click",
+      "valor": {
+        "boton": "Button.left",
+        "ventana": {
+          "titulo": "Steam",
+          "proceso": "steamwebhelper.exe",
+          "pid": 14916,
+          "monitor": 0,
+          "maximizada": false,
+          "minimizada": false,
+          "rect": {
+            "left": 78,
+            "top": 8,
+            "right": 1688,
+            "bottom": 1039
+          },
+          "width": 1610,
+          "height": 1031,
+          "timestamp": 1784662659.1983273
+        },
+        "x_rel": 222,
+        "y_rel": 183
+      }
+    },
+    {
+      "tipo": "click",
+      "valor": {
+        "boton": "Button.left",
+        "ventana": {
+          "titulo": "Steam",
+          "proceso": "steamwebhelper.exe",
+          "pid": 14916,
+          "monitor": 0,
+          "maximizada": false,
+          "minimizada": false,
+          "rect": {
+            "left": 78,
+            "top": 8,
+            "right": 1688,
+            "bottom": 1039
+          },
+          "width": 1610,
+          "height": 1031,
+          "timestamp": 1784662659.8172667
+        },
+        "x_rel": 222,
+        "y_rel": 183
+      }
+    },
+    {
+      "tipo": "click",
+      "valor": {
+        "boton": "Button.left",
+        "ventana": {
+          "titulo": "Steam",
+          "proceso": "steamwebhelper.exe",
+          "pid": 14916,
+          "monitor": 0,
+          "maximizada": false,
+          "minimizada": false,
+          "rect": {
+            "left": 78,
+            "top": 8,
+            "right": 1688,
+            "bottom": 1039
+          },
+          "width": 1610,
+          "height": 1031,
+          "timestamp": 1784662660.5123458
+        },
+        "x_rel": 128,
+        "y_rel": 181
+      }
+    },
+    {
+      "tipo": "escribir",
+      "valor": "{slot}"
+    },
+    {
+      "tipo": "click",
+      "valor": {
+        "boton": "Button.left",
+        "ventana": {
+          "titulo": "Steam",
+          "proceso": "steamwebhelper.exe",
+          "pid": 14916,
+          "monitor": 0,
+          "maximizada": false,
+          "minimizada": false,
+          "rect": {
+            "left": 78,
+            "top": 8,
+            "right": 1688,
+            "bottom": 1039
+          },
+          "width": 1610,
+          "height": 1031,
+          "timestamp": 1784662665.8951702
+        },
+        "x_rel": 124,
+        "y_rel": 249
+      }
+    },
+    {
+      "tipo": "click",
+      "valor": {
+        "boton": "Button.left",
+        "ventana": {
+          "titulo": "Steam",
+          "proceso": "steamwebhelper.exe",
+          "pid": 14916,
+          "monitor": 0,
+          "maximizada": false,
+          "minimizada": false,
+          "rect": {
+            "left": 78,
+            "top": 8,
+            "right": 1688,
+            "bottom": 1039
+          },
+          "width": 1610,
+          "height": 1031,
+          "timestamp": 1784662667.1702414
+        },
+        "x_rel": 394,
+        "y_rel": 435
+      }
+    }
+  ],
+  "abrir_aplicacion_via_click": [
+    {
+      "tipo": "click",
+      "valor": {
+        "boton": "Button.left",
+        "ventana": {
+          "titulo": "build_templates.py - Machine Learning - Visual Studio Code",
+          "proceso": "Code.exe",
+          "pid": 4460,
+          "monitor": 0,
+          "maximizada": true,
+          "minimizada": false,
+          "rect": {
+            "left": -8,
+            "top": -8,
+            "right": 1928,
+            "bottom": 1040
+          },
+          "width": 1936,
+          "height": 1048,
+          "timestamp": 1784746366.974408
+        },
+        "x_rel": 1194,
+        "y_rel": 1077
+      }
+    }
+  ],
+  "nueva_nota_via_enter": [
+    {
+      "tipo": "tecla_especial",
+      "valor": "win"
+    },
+    {
+      "tipo": "escribir",
+      "valor": "{slot}"
+    },
+    {
+      "tipo": "tecla_especial",
+      "valor": "enter"
+    },
+    {
+      "tipo": "click",
+      "valor": {
+        "boton": "Button.left",
+        "ventana": {
+          "titulo": "Notas rápidas",
+          "proceso": "ApplicationFrameHost.exe",
+          "pid": 9496,
+          "monitor": 1,
+          "maximizada": false,
+          "minimizada": false,
+          "rect": {
+            "left": 3231,
+            "top": 129,
+            "right": 3470,
+            "bottom": 818
+          },
+          "width": 239,
+          "height": 689,
+          "timestamp": 1784662443.368255
+        },
+        "x_rel": 29,
+        "y_rel": 19
+      }
+    },
+    {
+      "tipo": "click",
+      "valor": {
+        "boton": "Button.left",
+        "ventana": {
+          "titulo": "Notas rápidas",
+          "proceso": "ApplicationFrameHost.exe",
+          "pid": 9496,
+          "monitor": 1,
+          "maximizada": false,
+          "minimizada": false,
+          "rect": {
+            "left": 3464,
+            "top": 129,
+            "right": 3703,
+            "bottom": 818
+          },
+          "width": 239,
+          "height": 689,
+          "timestamp": 1784662444.834122
+        },
+        "x_rel": 59,
+        "y_rel": 69
+      }
+    }
+  ],
+  "nueva_nota_via_click": [
+    {
+      "tipo": "tecla_especial",
+      "valor": "win"
+    },
+    {
+      "tipo": "escribir",
+      "valor": "{slot}"
+    },
+    {
+      "tipo": "click",
+      "valor": {
+        "boton": "Button.left",
+        "ventana": {
+          "titulo": "Buscar",
+          "proceso": "SearchHost.exe",
+          "pid": 15044,
+          "monitor": 0,
+          "maximizada": false,
+          "minimizada": false,
+          "rect": {
+            "left": 531,
+            "top": 142,
+            "right": 1389,
+            "bottom": 1032
+          },
+          "width": 858,
+          "height": 890,
+          "timestamp": 1784662505.1818964
+        },
+        "x_rel": 156,
+        "y_rel": 193
+      }
+    }
   ]
 }

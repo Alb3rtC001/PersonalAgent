@@ -1,20 +1,28 @@
 """
 recorded_action.py
 
-Acción genérica: en vez de una clase Python escrita a mano por cada
-acción (como open_application.py o create_note.py), esta única clase
-sirve para CUALQUIER intención que ya tenga una plantilla grabada en
-templates.json. Grabar una acción nueva 2 veces (con valores
-distintos) es suficiente para que funcione, sin tocar código.
+Acción genérica que ejecuta plantillas grabadas por demostración.
+Antes de reproducir, verifica que la ventana objetivo esté abierta
+(si la plantilla tiene esa información grabada). Si no está, informa
+al usuario en vez de ejecutar clics en el sitio equivocado.
 """
 
 import json
+import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from acctions.base import AccionBase
-from recorder.player import reproducir_plantilla
+from recorder.player import reproducir_plantilla, _extraer_titulo_ventana_objetivo
 
 RUTA_PLANTILLAS = Path(__file__).parent.parent / "recorder" / "templates.json"
+
+try:
+    from window_manager import ventana_abierta
+    WINDOW_MANAGER_DISPONIBLE = True
+except ImportError:
+    WINDOW_MANAGER_DISPONIBLE = False
 
 
 def cargar_plantilla(nombre_accion: str):
@@ -39,4 +47,14 @@ class RecordedAction(AccionBase):
             )
         if not slot:
             return f"No he identificado el slot en: '{texto}'"
+
+        # Verificar que la ventana objetivo esté abierta antes de ejecutar
+        titulo_objetivo = _extraer_titulo_ventana_objetivo(plantilla)
+        if titulo_objetivo and WINDOW_MANAGER_DISPONIBLE:
+            if not ventana_abierta(titulo_objetivo):
+                return (
+                    f"La ventana '{titulo_objetivo}' no está abierta. "
+                    f"Ábrela primero antes de ejecutar '{self.nombre_intencion}'."
+                )
+
         return reproducir_plantilla(plantilla, slot)
