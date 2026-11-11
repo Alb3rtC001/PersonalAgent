@@ -32,7 +32,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import MONITORES
 
 try:
-    from window_manager import obtener_contexto_click
+    from core.estado import obtener_contexto_click
     WINDOW_MANAGER_DISPONIBLE = True
 except ImportError:
     WINDOW_MANAGER_DISPONIBLE = False

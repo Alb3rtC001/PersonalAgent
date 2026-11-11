@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Modelos entrenados (se regeneran con python nlu/training.py)
+*.pt
+
+# Datos generados por el agente (notas, episodios)
+data/
+
+# Grabaciones crudas y sus copias de seguridad
+recorder/recordings.json
+recorder/recordings.backup*.json

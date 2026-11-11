@@ -1,0 +1,223 @@
+# PersonalAgent — Nueva arquitectura
+
+Documento de diseño. Recoge cómo queremos reorganizar el proyecto, qué se
+aprovecha del código actual y en qué orden se construye cada pieza.
+
+---
+
+## 1. Punto de partida: ¿entrenar por demostración abarata el entrenamiento?
+
+**En parte sí, y conviene matizar en qué.**
+
+Lo que **sí** abarata grabar tú las acciones:
+- **Definir una acción nueva** no requiere programarla: demuestras y el
+  sistema la generaliza. Es el ahorro más grande.
+- **Los datos salen perfectos**: cada grabación es un ejemplo correcto,
+  con el resultado comprobado. No hay que etiquetar a mano ni limpiar ruido.
+- **No hace falta GPU ni nube** para "aprender" una acción grabada: es
+  guardar una plantilla, no entrenar una red.
+
+Lo que **no** resuelve por sí solo:
+- Grabar no enseña al sistema a **planificar** (a decidir qué acciones
+  combinar para un objetivo nuevo). Eso lo hace otra pieza (el planificador).
+- Las grabaciones por coordenadas son **frágiles**: cambia la resolución,
+  el tema o el diseño de una app y dejan de funcionar.
+
+### Cómo conseguir que "se entrene solo" a partir de tus acciones
+
+No hace falta entrenar un modelo grande desde cero. Hay tres mecanismos
+complementarios, de más barato a más caro:
+
+1. **Componer sin entrenar (en contexto).** Un LLM local pequeño recibe el
+   catálogo de acciones (nombre, descripción, parámetros) y elige cuáles
+   encadenar. Añadir una acción al catálogo la hace utilizable al instante,
+   sin reentrenar nada. Es lo que en el mundo de los LLM se llama *tool use*.
+2. **Memoria de episodios.** Cada orden ejecutada se guarda (frase,
+   intención, parámetros, plan, si funcionó). Ante una frase nueva se
+   recuperan los episodios exitosos más parecidos y se le pasan al
+   planificador como ejemplos. El sistema mejora con el uso sin entrenar.
+3. **Reentrenamiento periódico con tus datos.** Los episodios exitosos se
+   convierten automáticamente en dataset (frase → plan). Con eso se
+   reentrena el clasificador actual (segundos, en CPU) y, más adelante, se
+   ajusta el LLM con LoRA/QLoRA (horas, en tu RTX 3060 Ti de 8 GB).
+
+Conclusión: tu idea es correcta. **Tus demostraciones y tu uso diario son los
+datos de entrenamiento**, y todo se puede hacer en local. Lo que cambia es que
+las "acciones" deben ser piezas bien descritas (skills) que un planificador
+pueda combinar, en vez de categorías fijas del clasificador.
+
+---
+
+## 2. Principios de diseño
+
+1. **100 % local.** Ninguna pieza del núcleo usa servicios de pago ni internet.
+2. **Skill = unidad de acción.** Todo lo que el agente sabe hacer es una
+   skill con un contrato común (ver §4), da igual cómo esté implementada.
+3. **Preferir lo robusto:** API nativa de Python > UI Automation de Windows
+   > plantilla grabada por coordenadas. La grabación sigue existiendo como
+   último recurso y como forma de *enseñar* acciones nuevas.
+4. **Toda acción se verifica.** Una skill no ha terminado hasta comprobar
+   que el efecto existe (el archivo está escrito, la ventana apareció...).
+5. **Todo se registra.** Cada ejecución deja un episodio: es la memoria y el
+   futuro dataset.
+6. **Seguridad por defecto.** Las acciones irreversibles piden confirmación;
+   si el sistema no está seguro, pregunta en vez de actuar.
+7. **El núcleo no sabe quién le habla.** La CLI de hoy, la API de mañana y
+   el móvil de pasado mañana son solo clientes del mismo núcleo.
+
+---
+
+## 3. Capas
+
+```
+ Clientes        CLI (hoy) · API HTTP local (FastAPI) · móvil · voz
+                         │
+ Entrada         texto ── (más adelante: voz → faster-whisper → texto)
+                         │
+ Comprensión     Router: frase → {intención | objetivo, parámetros, confianza}
+                 v0: clasificador PyTorch actual + slots.py
+                 v1: LLM local (Ollama + Qwen2.5 7B / Llama 3.1 8B) con salida JSON
+                     validada; el clasificador queda como atajo rápido
+                         │
+ Planificación   objetivo → secuencia de skills
+                 v0: una intención = una skill
+                 v1: el LLM propone el plan; STRIPS valida precondiciones
+                         │
+ Ejecución       Executor: valida parámetros → confirma si es arriesgado →
+                 ejecuta → verifica → registra episodio → replanifica si falla
+                         │
+ Skills          nativas (Python) · UI Automation (pywinauto) · plantillas grabadas
+                         │
+ Estado          window_manager (ventanas, procesos, monitores) + contexto de sesión
+                         │
+ Memoria         episodios (data/episodios.jsonl) · contexto de sesión · preferencias
+                         │
+ Aprendizaje     (offline) episodios → dataset → reentrenar clasificador / LoRA del LLM
+```
+
+---
+
+## 4. Contrato de una skill
+
+Cada skill hereda de `core.skills.base.Skill` y declara:
+
+| Campo / método              | Para qué sirve                                                    |
+| --------------------------- | ----------------------------------------------------------------- |
+| `nombre`                    | Identificador único (`crear_nota`).                               |
+| `descripcion`               | Texto que leerá el LLM para decidir si usarla.                    |
+| `parametros`                | Parámetros obligatorios con su descripción.                       |
+| `parametros_opcionales`     | Parámetros opcionales.                                            |
+| `requiere_confirmacion`     | Si es irreversible (enviar, borrar, comprar...).                  |
+| `ejecutar(**params)`        | Hace la acción y devuelve un `Resultado`.                         |
+| `verificar(resultado)`      | Comprueba en el mundo real que el efecto existe.                  |
+| *(futuro)* `precondiciones` / `efectos` | Para que STRIPS valide planes.                        |
+
+`Resultado` lleva `ok`, `mensaje`, `datos` y, si falta información,
+`falta` (el nombre del parámetro que hay que pedir al usuario).
+
+---
+
+## 5. Estructura de carpetas objetivo
+
+```
+core/                    # Núcleo nuevo
+  skills/
+    base.py              # Skill + Resultado + precondiciones/efectos (hecho)
+    crear_nota.py        # Skill nativa              (hecho)
+    abrir_aplicacion.py  # Skill nativa              (hecho)
+    restaurar_ventana.py # Skill nativa              (hecho)
+    plantilla.py         # Adaptador: plantilla grabada → skill (hecho)
+  agente.py              # Fachada para los clientes (hecho)
+  registro.py            # Catálogo de skills        (hecho)
+  router.py              # Frase → skill + parámetros (hecho, envuelve nlu/)
+  planner.py             # Planificador por regresión (hecho)
+  executor.py            # Confirmar + ejecutar + verificar + replanificar + registrar (hecho)
+  estado.py              # Ventanas, monitores, hechos (hecho, antes window_manager.py)
+  memoria.py             # Episodios                 (hecho)
+  sesion.py              # Contexto de sesión (fase 4)
+api/                     # FastAPI local (fase 2)
+nlu/                     # Se mantiene: clasificador + slots
+recorder/                # Se mantiene; en fase 5 graba controles UIA, no coordenadas
+  catalogo.json          # Qué plantillas se publican como skill (hecho)
+data/                    # Notas, episodios… (no se sube a git)
+tests/
+```
+
+### Qué se aprovecha y qué se rehace
+
+| Pieza actual                         | Decisión                                                           |
+| ------------------------------------ | ------------------------------------------------------------------ |
+| `nlu/` (clasificador, dataset, slots)| **Se aprovecha** como router v0 y atajo rápido del v1.             |
+| `recorder/` (grabar, generalizar)    | **Se aprovecha**; se envuelve como skill y en fase 5 se mejora.    |
+| `window_manager.py`                  | **Se aprovecha** como capa de estado.                              |
+| `planner.py` (STRIPS)                | **Se reescribe**: operadores hardcodeados → skills con precondiciones. |
+| `plan_executor.py`                   | **Se sustituye** por `core/executor.py`.                           |
+| `acctions/`                          | **Se sustituye** por `core/skills/`.                               |
+| `dispatcher.py`                      | Pasa a ser solo un cliente CLI del núcleo.                         |
+| `fix_recordings.py`, `rebuild_recordings.py` | Se revisan en fase 5.                                      |
+
+---
+
+## 6. Problemas actuales y su solución
+
+| Problema                                                                 | Solución                                                         | Fase |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------- | :--: |
+| `plan_executor.py` importaba un módulo inexistente; el dispatcher no arrancaba | Import corregido                                            | 0 ✅ |
+| `crear_nota` era un placeholder                                          | Skill nativa que escribe un `.md` y verifica                     | 0 ✅ |
+| `extraer_slot` devolvía el texto en minúsculas y sin tildes              | Ahora conserva el texto original del usuario                     | 0 ✅ |
+| No se guardaba ningún historial                                          | Episodios en `data/episodios.jsonl`                              | 0 ✅ |
+| La replanificación de `plan_executor` no tiene efecto y detecta errores buscando el texto "ERROR" | Executor nuevo con `Resultado.ok` real        | 1 ✅ |
+| El operador `restaurar_steam` no tiene plantilla                         | Skill nativa `restaurar_ventana` con pygetwindow                 | 1 ✅ |
+| Abrir apps tecleando en el menú Inicio es frágil                         | Skill nativa: índice del menú Inicio (`Get-StartApps`) + `shell:AppsFolder` | 1 ✅ |
+| El reproductor preguntaba con `input()` (imposible desde una API)        | La confirmación la pide el executor mediante una función inyectada | 1 ✅ |
+| El reproductor no podía escribir tildes ni eñes                          | Texto no ASCII se pega desde el portapapeles                     | 1 ✅ |
+| Clics por coordenadas se rompen al cambiar la pantalla                   | UI Automation (pywinauto) y grabador que guarda controles        | 5 |
+| Clasificador de categorías fijas: no entiende objetivos nuevos ni varios parámetros | LLM local con salida estructurada                     | 3 |
+| Sin contexto entre órdenes ("abre WhatsApp" → "llama a mamá")            | `core/sesion.py` con caducidad                                   | 4 |
+| `requirements.txt` con paquetes que no se usan                           | Limpiarlo y separar dependencias opcionales                      | 1 ✅ |
+| `.gitignore` con rutas con `\` que git no entiende                       | Reescribirlo                                                     | 1 ✅ |
+
+---
+
+## 7. Hoja de ruta
+
+Cada fase termina con algo que funciona de punta a punta.
+
+- **Fase 0 — Base mínima (hecha).** `core/` con contrato de skill,
+  executor, memoria de episodios y `crear_nota` real. Dispatcher arranca.
+- **Fase 1 — Núcleo único (hecha).** `core/agente.py` (fachada),
+  `router.py`, `planner.py` (regresión sobre precondiciones/efectos
+  declarados por cada skill), `executor.py` (confirmar → ejecutar →
+  verificar → replanificar una vez → registrar), `estado.py`;
+  `abrir_aplicacion` y `restaurar_ventana` nativas; plantillas publicadas
+  vía `recorder/catalogo.json`; retirados `acctions/`, `planner.py`,
+  `plan_executor.py` y `window_manager.py`; 16 tests.
+- **Fase 2 — API local.** FastAPI con `POST /orden`, `GET /skills`,
+  `GET /episodios`. La CLI pasa a usar la API. Base para el móvil.
+- **Fase 3 — LLM local.** Ollama + modelo 7–8B cuantizado. Frase →
+  JSON `{skill, parametros}` o plan de varias skills, validado contra el
+  catálogo. El clasificador actual responde primero si está muy seguro.
+- **Fase 4 — Memoria y contexto.** Contexto de sesión, verificador de éxito
+  general, recuperación de episodios parecidos como ejemplos.
+- **Fase 5 — Acciones robustas.** UI Automation; grabador v2 que guarda el
+  control pulsado (nombre, tipo) en vez de coordenadas; OCR solo si no hay otra opción.
+- **Fase 6 — Aprendizaje continuo.** Episodios → dataset → reentreno del
+  clasificador y LoRA del LLM; propuesta automática de skills compuestas a
+  partir de secuencias repetidas.
+- **Fase 7 — Voz.** faster-whisper (voz a texto), Piper (texto a voz),
+  openWakeWord (palabra de activación).
+- **Fase 8 — Móvil y domótica.** App cliente contra la API del PC;
+  domótica vía Home Assistant (local).
+
+---
+
+## 8. Riesgos a vigilar
+
+- **Calidad del LLM local:** un 7–8B se equivoca más que uno en la nube. Se
+  compensa con salida validada, confirmación en acciones arriesgadas y
+  verificación tras actuar.
+- **Python 3.14:** algunas librerías (p. ej. CUDA para PyTorch) pueden tardar
+  en tener versión compatible. Si hace falta GPU para entrenar, valorar un
+  entorno separado con Python 3.12.
+- **Seguridad de la API:** escuchar solo en la red local y exigir un token
+  cuando se conecte el móvil.

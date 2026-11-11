@@ -93,7 +93,10 @@ if __name__ == "__main__":
         "abreme el bloc de notas",
         "apunta que hay que sacar la basura",
         "quiero dejar constancia de una idea",
-        "que tiempo hace hoy",  # fuera de dominio, a propósito
+        "que tiempo hace hoy",
+        "Pintame un cuadro",
+        "quiero jugar al destiny",
+        "abreme el juego Golf it"  # fuera de dominio, a propósito
     ]
     for frase in frases_prueba:
         vector = vectorizar_bow(tokenizar(frase), vocab)

@@ -1,74 +1,45 @@
 """
-Dispatcher: conecta el clasificador de intención con las acciones reales.
+Cliente de consola del agente.
 
-Aplica dos redes de seguridad antes de ejecutar nada:
-1. Si la intención predicha es "ninguna", no se ejecuta ninguna acción.
-2. Si la confianza está por debajo de UMBRAL_CONFIANZA (config.py),
-   tampoco se ejecuta, aunque la intención predicha no sea "ninguna"
-   (el modelo puede estar dudando entre una acción real y "ninguna").
+Toda la lógica vive en core/ (ver ARQUITECTURA.md). Este archivo solo
+lee órdenes del teclado y muestra las respuestas.
+
+Uso:
+    python dispatcher.py
 """
 
-import sys
-from pathlib import Path
+from __future__ import annotations
 
-RUTA_BASE = Path(__file__).parent
-sys.path.append(str(RUTA_BASE / "nlu"))
-
-from nlu.vocabulary import tokenizar, vectorizar_bow, cargar_vocabulario  # noqa: E402
-from nlu.model import cargar_modelo, predecir_proba  # noqa: E402
-from nlu.slots import extraer_slot  # noqa: E402
-
-from acctions.recorded_actions import RecordedAction  # noqa: E402
-from acctions.create_note import CrearNota  # noqa: E402
-from config import UMBRAL_CONFIANZA  # noqa: E402
-
-RUTA_VOCAB = RUTA_BASE / "nlu" / "vocabulary.json"
-
-# Registro de acciones disponibles. abrir_aplicacion ya no necesita una
-# clase escrita a mano: usa la plantilla grabada por demostración.
-# Grabar una acción nueva 2 veces es suficiente para añadirla aquí.
-ACCIONES = {
-    "abrir_aplicacion": RecordedAction("abrir_aplicacion"),
-    "crear_nota": CrearNota(),
-}
+from core.agente import Agente
 
 
-class Dispatcher:
-    def __init__(self):
-        self.vocab, self.intenciones = cargar_vocabulario(RUTA_VOCAB)
-        self.idx_a_intencion = {v: k for k, v in self.intenciones.items()}
-        self.modelo = cargar_modelo()
+def pedir(pregunta: str) -> str:
+    return input(f"  {pregunta} > ")
 
-    def procesar(self, texto: str) -> str:
-        vector = vectorizar_bow(tokenizar(texto), self.vocab)
-        probas = predecir_proba(self.modelo, vector)
-        idx = probas.argmax().item()
-        confianza = probas[idx].item()
-        intencion = self.idx_a_intencion[idx]
 
-        if intencion == "ninguna":
-            return f"No he entendido esa orden (confianza={confianza:.2f})"
+def confirmar(accion: str) -> bool:
+    respuesta = input(f"  ⚠ Acción definitiva: {accion}. ¿Continuar? (s/n) > ")
+    return respuesta.strip().lower() in ("s", "si", "sí", "y", "yes")
 
-        if confianza < UMBRAL_CONFIANZA:
-            return (
-                f"No estoy seguro de lo que pides "
-                f"(predicción: {intencion}, confianza={confianza:.2f} "
-                f"< umbral {UMBRAL_CONFIANZA})"
-            )
 
-        accion = ACCIONES.get(intencion)
-        if accion is None:
-            return f"Intención '{intencion}' reconocida pero sin acción implementada todavía"
-
-        slot = extraer_slot(texto, intencion)
-        return accion.ejecutar(texto, slot)
+def main() -> None:
+    agente = Agente()
+    print("Escribe una orden (o 'salir' para terminar)")
+    while True:
+        try:
+            texto = input("> ")
+        except EOFError:
+            break
+        if texto.strip().lower() == "salir":
+            break
+        if not texto.strip():
+            continue
+        resultado = agente.procesar(texto, pedir=pedir, confirmar=confirmar)
+        planes = resultado.datos.get("planes") or []
+        if planes and len(planes[-1]) > 1:
+            print("  Plan: " + " → ".join(planes[-1]))
+        print(("✔ " if resultado.ok else "✘ ") + resultado.mensaje)
 
 
 if __name__ == "__main__":
-    dispatcher = Dispatcher()
-    print("Escribe una orden (o 'salir' para terminar)")
-    while True:
-        texto = input("> ")
-        if texto.strip().lower() == "salir":
-            break
-        print(dispatcher.procesar(texto))
+    main()

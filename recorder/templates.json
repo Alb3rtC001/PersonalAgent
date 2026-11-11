@@ -159,6 +159,7 @@
     },
     {
       "tipo": "click",
+      "definitivo":true,
       "valor": {
         "boton": "Button.left",
         "ventana": {

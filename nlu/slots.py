@@ -46,6 +46,13 @@ DISPARADORES = {
         "anotame esto", "anotame", "anota que", "anota esto", "anota",
         "apuntame lo que digo", "apuntame",
     ],
+    "ejecutar_en_steam": [
+    "quiero jugar a", "quiero jugar al", "quiero jugar",
+    "abreme el juego", "abre el juego", "lanza el juego",
+    "jugar a", "jugar al", "jugar",
+    "ejecuta el juego", "pon el juego",
+    "en steam", "desde steam",
+    ],
 }
 
 # Artículos que pueden quedar pegados delante del slot tras quitar el
@@ -57,9 +64,15 @@ ARTICULOS_INICIALES = {"el", "la", "los", "las", "un", "una", "unos", "unas"}
 
 def _quitar_articulo_inicial(texto: str) -> str:
     palabras = texto.split()
-    while palabras and palabras[0] in ARTICULOS_INICIALES:
+    while palabras and palabras[0].lower() in ARTICULOS_INICIALES:
         palabras = palabras[1:]
     return " ".join(palabras)
+
+
+def _normalizar_caracter(c: str) -> str:
+    """Minúscula y sin tilde, garantizando 1 carácter de salida por 1 de entrada."""
+    n = _quitar_acentos(c.lower())
+    return n if len(n) == 1 else c
 
 
 def _quitar_acentos(texto: str) -> str:
@@ -75,19 +88,29 @@ def extraer_slot(texto: str, intencion: str) -> str:
     Devuelve el texto restante tras quitar los disparadores conocidos
     de la intención. Si no hay disparadores definidos para esa
     intención, devuelve el texto tal cual (sin tocar).
+
+    La búsqueda de disparadores se hace sobre una copia normalizada
+    (minúsculas, sin tildes) con la misma longitud que el original, y lo
+    que se recorta se recorta del texto ORIGINAL: así el slot conserva
+    mayúsculas y tildes (importante para el contenido de una nota).
     """
-    texto_normalizado = _quitar_acentos(texto.strip().lower())
-    disparadores = DISPARADORES.get(intencion, [])
-    disparadores_ordenados = sorted(disparadores, key=len, reverse=True)
+    # Quitar caracteres invisibles (BOM, espacios de ancho cero) que a veces
+    # llegan de la consola o de otros programas.
+    original = re.sub(r"[﻿​-‍]", "", texto).strip()
+    normalizado = "".join(_normalizar_caracter(c) for c in original)
+    conservar = [True] * len(original)
 
-    for disparador in disparadores_ordenados:
-        disparador_normalizado = _quitar_acentos(disparador)
-        patron = re.escape(disparador_normalizado)
-        texto_normalizado = re.sub(rf"\b{patron}\b", "", texto_normalizado)
+    disparadores = sorted(DISPARADORES.get(intencion, []), key=len, reverse=True)
+    for disparador in disparadores:
+        patron = re.escape(_quitar_acentos(disparador))
+        for m in re.finditer(rf"\b{patron}\b", normalizado):
+            if all(conservar[m.start():m.end()]):
+                for i in range(m.start(), m.end()):
+                    conservar[i] = False
 
-    slot = re.sub(r"\s+", " ", texto_normalizado).strip()
-    slot = _quitar_articulo_inicial(slot)
-    return slot
+    restante = "".join(c if keep else " " for c, keep in zip(original, conservar))
+    slot = re.sub(r"\s+", " ", restante).strip()
+    return _quitar_articulo_inicial(slot)
 
 
 if __name__ == "__main__":
@@ -96,7 +119,12 @@ if __name__ == "__main__":
         ("ábreme discord", "abrir_aplicacion"),
         ("quiero abrir steam", "abrir_aplicacion"),
         ("puedes abrirme discord", "abrir_aplicacion"),
-        ("abre notion", "abrir_aplicacion"),
+        ("Quiero jugar a Destiny 2", "abrir_aplicacion"),
+        ("abreme el juego path of exile", "ejecutar_en_steam"),
+        ("quiero jugar a golf it", "ejecutar_en_steam"),
+        ("vamos a jugar a battlefield", "ejecutar_en_steam"),
+        ("inicia el juego POE", "ejecutar_en_steam"),
+        ("pon minecraft", "ejecutar_en_steam"),
         ("apunta que hay que sacar la basura", "crear_nota"),
         ("hazme una nota que diga revisar el coche", "crear_nota"),
         ("crea una nota con el titulo compras", "crear_nota"),

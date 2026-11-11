@@ -140,6 +140,26 @@
     "intencion": "abrir_aplicacion"
   },
   {
+    "frase": "abreme la aplicacion de steam",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "abreme la calculadora",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "abreme whatsapp",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "abreme el correo",
+    "intencion": "abrir_aplicacion"
+  },
+  {
+    "frase": "Me puedes abrir el Opera",
+    "intencion": "abrir_aplicacion"
+  },
+  {
     "frase": "me abres discord",
     "intencion": "abrir_aplicacion"
   },
@@ -430,5 +450,217 @@
   {
     "frase": "que noticias hay hoy",
     "intencion": "ninguna"
+  },
+  {
+    "frase": "abre el juego battlefield",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "abre el juego destiny 2",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "abre el juego counter strike",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "abre el juego minecraft",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "abre el juego golf it",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "abre el juego papers please",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "abre el juego ark",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "abre el juego peak",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "abreme el juego battlefield",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "abreme el juego destiny 2",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "abreme el juego golf it",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "abreme el juego overwatch",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "abreme el juego path of exile",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "quiero jugar a battlefield",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "quiero jugar a destiny 2",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "quiero jugar a counter strike",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "quiero jugar a minecraft",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "quiero jugar a golf it",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "quiero jugar a papers please",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "quiero echar una partida a battlefield",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "quiero echar una partida a destiny 2",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "quiero echar una partida a minecraft",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "vamos a jugar a battlefield",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "vamos a jugar a destiny 2",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "vamos a jugar a golf it",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "me apetece jugar a battlefield",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "me apetece jugar a destiny 2",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "me apetece jugar a minecraft",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "inicia el juego battlefield",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "inicia el juego destiny 2",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "inicia el juego golf it",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "inicia el juego minecraft",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "ejecuta el juego battlefield",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "ejecuta el juego destiny 2",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "ejecuta el juego counter strike",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "lanza el juego battlefield",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "lanza el juego destiny 2",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "lanza el juego minecraft",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "pon el juego battlefield",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "pon el juego destiny 2",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "pon el juego golf it",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "pon battlefield",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "pon destiny 2",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "pon minecraft",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "arranca el juego battlefield",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "arranca el juego destiny 2",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "arranca el juego counter strike",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "quiero abrir el juego battlefield",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "quiero abrir el juego destiny 2",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "puedes abrir el juego minecraft",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "me puedes abrir el juego golf it",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "abre mi juego favorito",
+    "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "quiero jugar",
+    "intencion": "ejecutar_en_steam"
   }
 ]

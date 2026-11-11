@@ -18,12 +18,24 @@ from pathlib import Path
 # "ninguna". Ajustado con datos reales del entrenamiento: las
 # predicciones correctas rondan 0.85-1.00, así que 0.70 da margen
 # de seguridad sin ser demasiado estricto.
-UMBRAL_CONFIANZA = 0.70
+UMBRAL_CONFIANZA = 0.72
 
-# Cuando el grabador detecte automáticamente la parte variable (slot)
-# de una plantilla grabada, pregunta al usuario para confirmarlo.
-# Ponlo a False cuando confíes en que la detección funciona bien sola.
-CONFIRMAR_SLOT_DETECTADO = True
+# Segundos que abrir_aplicacion espera a que aparezca la ventana de la app.
+ESPERA_MAX_APERTURA = 15
+
+# Nombres alternativos para abrir_aplicacion: lo que dices -> nombre en el menú Inicio.
+# Las claves van en minúsculas y sin tildes.
+ALIAS_APLICACIONES = {
+    "navegador": "Google Chrome",
+    "chrome": "Google Chrome",
+    "explorador": "Explorador de archivos",
+    "notas": "Notas rápidas",
+}
+
+# Datos generados por el agente (no se suben a git).
+RUTA_DATOS = Path(__file__).parent / "data"
+RUTA_NOTAS = RUTA_DATOS / "notas"                  # notas creadas por crear_nota
+RUTA_EPISODIOS = RUTA_DATOS / "episodios.jsonl"    # historial de órdenes ejecutadas
 
 # ---------------------------------------------------------------------------
 # Detección automática de monitores (se ejecuta solo una vez al importar)
@@ -37,7 +49,7 @@ def _detectar_monitores() -> list[dict]:
     """
     try:
         sys.path.insert(0, str(Path(__file__).parent))
-        from window_manager import obtener_monitores
+        from core.estado import obtener_monitores
         monitores = obtener_monitores()
         if monitores and "error" not in monitores[0]:
             return monitores

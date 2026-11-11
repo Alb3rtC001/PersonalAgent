@@ -1,0 +1,10 @@
+{
+  "ejecutar_en_steam": {
+    "descripcion": "Busca un juego en la biblioteca de Steam y lo lanza (plantilla grabada).",
+    "parametro": "juego",
+    "descripcion_parametro": "Nombre del juego tal como aparece en la biblioteca de Steam",
+    "precondiciones": {"visible:steam": true},
+    "efectos": {"lanzado:{juego}": true},
+    "coste": 2
+  }
+}

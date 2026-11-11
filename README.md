@@ -5,10 +5,16 @@ Actualmente
 # Cómo se quiere afrontar el proyecto y sus pasos a seguir (de mforma generalísta)
 
 ## (Poyecto 1):
-PC application
+PC application -> agente autónomo con planificación abierta
 
 ## (Proyecto 2):
-Mobile application 
+agente autónomo con planificación abierta -> Gestión por voz para Móvil con posibilidad de hacer control domótico.
+
+> **Nueva arquitectura:** ver [ARQUITECTURA.md](ARQUITECTURA.md).
+> Todo lo que el agente sabe hacer son *skills* en `core/skills/`
+> (`crear_nota`, `abrir_aplicacion`, `restaurar_ventana`) más las
+> plantillas grabadas publicadas en `recorder/catalogo.json`.
+> Cada orden queda registrada en `data/episodios.jsonl`.
 
 # Asistente Local — Documentación
 
@@ -16,11 +22,22 @@ Mobile application
 
 ```
 asistente/
-├── config.py               # Configuración global (umbral de confianza, flag de confirmación)
-├── dispatcher.py           # Punto de entrada principal: texto → intención → acción
+├── config.py               # Configuración global (umbral, rutas, alias de apps)
+├── dispatcher.py           # Cliente de consola: lee órdenes y llama a core.agente
 ├── add_phrases.py          # Utilidad para añadir frases al dataset (ver sección más abajo)
-├── requirements.txt        # Imports realizados para el proyecto necesarios para funcionar 
+├── requirements.txt        # Dependencias
 ├── README.md               # Esta documentación
+├── ARQUITECTURA.md         # Diseño y hoja de ruta
+├── core/                   # Núcleo del agente
+│   ├── agente.py           # Fachada: frase → Resultado (lo que usan los clientes)
+│   ├── router.py           # Frase → skill + parámetros (clasificador + slots)
+│   ├── planner.py          # Pasos previos necesarios según precondiciones/efectos
+│   ├── executor.py         # Confirmar → ejecutar → verificar → replanificar → registrar
+│   ├── estado.py           # Ventanas, monitores y hechos del mundo (antes window_manager.py)
+│   ├── memoria.py          # Episodios (data/episodios.jsonl)
+│   ├── registro.py         # Catálogo de skills
+│   └── skills/             # base.py, crear_nota, abrir_aplicacion, restaurar_ventana, plantilla
+├── tests/                  # python -m pytest tests
 ├── nlu/                    # Núcleo de comprensión del lenguaje (100% local, sin internet)
 │   ├── dataset.py          # Funciones para gestionar el dataset (agregar_frase, cargar_dataset...)
 │   ├── dataset.json        # Frases de entrenamiento por intención
@@ -30,12 +47,6 @@ asistente/
 │   ├── modelo.pt           # Pesos del modelo entrenado (generado por training.py)
 │   ├── training.py         # Bucle de entrenamiento
 │   └── slots.py            # Extracción de slots (qué app, qué contenido de nota...)
-├── acctions/               # Capa de acciones (una clase por tipo de acción)
-│   ├── __init__.py
-│   ├── base.py             # Interfaz común AccionBase
-│   ├── recorded_actions.py # Acción genérica que ejecuta plantillas grabadas
-│   ├── open_application.py # Acción de abrir apps (ahora sustituida por recorded_actions)
-│   └── create_note.py      # Acción de crear notas
 └── recorder/               # Sistema de grabación por demostración
     ├── recorder.py         # Captura teclado + ratón mientras haces la acción tú mismo
     ├── storage.py          # Persistencia de grabaciones (recordings.json)
@@ -43,7 +54,8 @@ asistente/
     ├── generalizer.py      # Lógica de comparación y detección del slot variable
     ├── player.py           # Reproduce una plantilla sustituyendo el slot
     ├── recordings.json     # Grabaciones crudas acumuladas
-    └── templates.json      # Plantillas generalizadas (generado por build_templates.py)
+    ├── templates.json      # Plantillas generalizadas (generado por build_templates.py)
+    └── catalogo.json       # Qué plantillas se publican como skill (descripción, parámetro, precondiciones, efectos)
 ```
 
 ---
@@ -168,16 +180,17 @@ python .\recorder\recorder.py
 # Paso 2: construir la plantilla
 python .\recorder\build_templates.py
 
-# Paso 3: añadir al dispatcher (solo si la intención es completamente nueva)
-# En dispatcher.py, añade dentro de ACCIONES:
-# "nombre_nueva_intencion": RecordedAction("nombre_nueva_intencion"),
+# Paso 3: publicarla como skill (solo si es completamente nueva)
+# Añade una entrada en recorder/catalogo.json con el mismo nombre:
+#   "nombre_accion": {"descripcion": "...", "parametro": "...",
+#                     "precondiciones": {...}, "efectos": {...}}
 
 # Paso 4: probar
 python .\dispatcher.py
 ```
 
 Si la acción ya existía (solo añadiste más grabaciones para mejorarla),
-los pasos 2 y 4 son suficientes — no hace falta tocar el dispatcher.
+los pasos 2 y 4 son suficientes — no hace falta tocar el catálogo.
 
 ---
 
@@ -201,8 +214,8 @@ python .\recorder\recorder.py
 # 5. Construye la plantilla
 python .\recorder\build_templates.py
 
-# 6. Registra la acción en dispatcher.py
-#    ACCIONES["nombre_nueva_intencion"] = RecordedAction("nombre_nueva_intencion")
+# 6. Publícala en recorder/catalogo.json con el MISMO nombre que la intención
+#    (o, si es una skill en Python, añádela a SKILLS_NATIVAS en core/registro.py)
 
 # 7. Prueba
 python .\dispatcher.py
@@ -257,7 +270,7 @@ Los errores más comunes de `build_templates.py`:
 | Frases nuevas en dataset            |        ✅ Sí       |        ❌ No        |              ✅ Sí             |
 | Disparador nuevo en `slots.py`      |        ❌ No       |        ❌ No        |              ✅ Sí             |
 | Grabación nueva de acción existente |        ❌ No       |        ✅ Sí        |              ✅ Sí             |
-| Intención nueva desde cero          |        ✅ Sí       |        ✅ Sí        | ✅ Sí + editar `dispatcher.py` |
+| Intención nueva desde cero          |        ✅ Sí       |        ✅ Sí        | ✅ Sí + editar `catalogo.json` |
 | Solo cambio en `config.py` (umbral) |        ❌ No       |        ❌ No        |              ✅ Sí             |
 
 
@@ -265,10 +278,8 @@ Los errores más comunes de `build_templates.py`:
 
 ## Siguientes pasos pendientes (por orden de prioridad)
 
-1. **Verificador de éxito**: comprobar si la app realmente se abrió
-   tras ejecutar la plantilla (usando `pygetwindow` para detectar si
-   apareció una ventana nueva). Ligado al "verificador" diseñado
-   también para música.
+1. ~~**Verificador de éxito**~~: hecho. Cada skill implementa
+   `verificar()` y el executor lo aplica siempre.
 2. **Contexto de sesión**: encadenar órdenes consecutivas que dependen
    unas de otras (ej. `"abre whatsapp"` → `"busca Mama"` → `"llama"`).
    Requiere un diccionario de estado compartido con caducidad por tiempo
@@ -291,8 +302,9 @@ Los errores más comunes de `build_templates.py`:
   (extraer slot, cargar plantilla, reproducir teclas) es código
   determinista, sin IA.
 - **Añadir una acción nueva no requiere escribir código**: solo dataset
-  + grabación + `build_templates.py`. El dispatcher la recoge
-  automáticamente via `RecordedAction`.
+  + grabación + `build_templates.py` + una entrada en
+  `recorder/catalogo.json`. El registro la convierte en skill y el
+  planificador ya puede usarla en sus planes.
 - **Slots vs. sub-intenciones**: si el código que se ejecuta es el mismo
   y solo cambia un valor (qué app, qué canción), es un slot. Si el
   código es distinto (abrir vs. cerrar), son intenciones separadas.
