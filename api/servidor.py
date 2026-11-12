@@ -13,6 +13,8 @@ GET    /episodios?limite=20   últimas órdenes registradas
 POST   /ordenes               {"texto": "..."}               → Respuesta
 POST   /ordenes/{id}          {"dato": "..."} o {"confirmar": true|false} → Respuesta
 DELETE /ordenes/{id}          descartar una orden pendiente
+GET    /llm                   estado del LLM (activo, cargado, modelo, gpu)
+POST   /llm                   {"activo": false|true} desactivar (libera la VRAM) o activar
 
 Conversación
 ------------
@@ -58,6 +60,10 @@ class OrdenNueva(BaseModel):
 class Contestacion(BaseModel):
     dato: str | None = None
     confirmar: bool | None = None
+
+
+class CambioLLM(BaseModel):
+    activo: bool
 
 
 class Respuesta(BaseModel):
@@ -138,6 +144,15 @@ def crear_app(agente: Agente | None = None, token: str | None = None) -> FastAPI
     @app.get("/salud")
     def salud() -> dict[str, Any]:
         return {"ok": True, "skills": len(agente.registro)}
+
+    @app.get("/llm", dependencies=protegido)
+    def estado_llm() -> dict[str, Any]:
+        return agente.estado_llm()
+
+    @app.post("/llm", dependencies=protegido)
+    def cambiar_llm(cambio: CambioLLM) -> dict[str, Any]:
+        """{"activo": false} descarga el LLM (libera la VRAM); {"activo": true} lo vuelve a cargar."""
+        return agente.activar_llm(cambio.activo)
 
     @app.get("/skills", dependencies=protegido)
     def skills() -> list[dict[str, Any]]:

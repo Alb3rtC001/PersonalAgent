@@ -191,6 +191,9 @@ def listar_ventanas_abiertas(monitores: list[dict] | None = None,
     """
     if monitores is None:
         monitores = obtener_monitores()
+    # La caché PID -> proceso solo vale para esta enumeración: Windows reutiliza
+    # los PID, y un nombre viejo haría que "cierra discord" cerrase otra app.
+    _cache_procesos.clear()
     ventanas = []
     for hwnd in _handles(incluir_ocultas):
         info = _info_ventana(hwnd, monitores)

@@ -47,6 +47,13 @@ class RouterFalso:
         return Interpretacion(texto, "ninguna", 0.99, motivo_rechazo="No he entendido esa orden.")
 
 
+def test_llm_estado_y_cambio(entorno):
+    cliente, _ = entorno
+    assert cliente.get("/llm").json()["activo"] is False   # RouterFalso no tiene LLM
+    assert cliente.post("/llm", json={"activo": False}).status_code == 200
+    assert cliente.post("/llm", json={"activo": "quizá"}).status_code == 422
+
+
 @pytest.fixture
 def entorno(tmp_path, monkeypatch):
     # El EstadoMundo real consultaría Windows; aquí ninguna skill tiene precondiciones.

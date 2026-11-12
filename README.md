@@ -67,9 +67,24 @@ llama.cpp + Qwen3-8B (Apache 2.0). Hay que descargarlo una vez (~5,3 GB);
 los pasos y los hashes están en [models/README.md](models/README.md).
 
 El agente arranca el LLM solo al empezar (tarda unos 4 s, en segundo plano)
-y lo para al salir. Ocupa unos 5,4 GB de memoria de la GPU mientras el
-agente está abierto. Sin los archivos de `models/` (o con `LLM_ACTIVO =
-False` en `config.py`) el agente funciona solo con el clasificador.
+y lo para al salir. Mientras está cargado ocupa unos 5,4 GB de memoria de la
+GPU; si pasa `LLM_DESCARGAR_TRAS` (15 min) sin usarse, se descarga solo y se
+vuelve a cargar cuando haga falta. Si el agente se cierra de golpe, el LLM
+se cierra con él (no se queda ocupando la GPU).
+
+**Desactivar el LLM** (solo clasificador, sin usar la GPU):
+
+| Cómo | Para qué |
+| ---- | -------- |
+| `python .\dispatcher.py --sin-llm` / `python -m api --sin-llm` | Una sesión sin LLM |
+| Escribir `llm off` (y `llm on` para volver) en la consola o en `cliente.py`; `llm` muestra el estado | En marcha: libera la VRAM al momento |
+| `POST /llm` con `{"activo": false}` en la API | Lo mismo desde el móvil u otro cliente |
+| `$env:PERSONALAGENT_LLM = "off"` antes de arrancar | Para todas las sesiones de esa terminal |
+| `LLM_ACTIVO = False` en `config.py` | Por defecto, siempre |
+
+`--llm-cpu` (o `$env:PERSONALAGENT_LLM = "cpu"`) usa el LLM sin GPU: no
+ocupa VRAM pero tarda varios segundos por orden. Sin los archivos de
+`models/` el agente funciona igual, solo con el clasificador.
 
 Para medir qué tal entiende las órdenes (frases que no están en el
 dataset, en `evaluacion/ordenes.json` y `evaluacion/ordenes_control.json`):
@@ -152,7 +167,8 @@ Para pararlo, `Ctrl+C` en la terminal del servidor.
 - `UMBRAL_CONFIANZA`: por debajo, el agente no actúa y dice que no está seguro.
 - `ALIAS_APLICACIONES`: nombres alternativos (`"navegador": "Google Chrome"`).
 - `ESPERA_MAX_APERTURA`: segundos que espera a que aparezca la ventana de una app (30 por defecto).
-- `LLM_ACTIVO`: `False` para no usar el LLM. `RUTA_MODELO_LLM` para usar otro modelo GGUF;
+- `LLM_ACTIVO`: `False` para no usar el LLM. `LLM_DESCARGAR_TRAS`: segundos sin
+  uso tras los que se descarga de la GPU (0 = nunca). `RUTA_MODELO_LLM` para usar otro modelo GGUF;
   `LLM_CAPAS_GPU = 0` para usarlo sin GPU (mucho más lento).
 - `API_HOST` / `API_PUERTO`: `127.0.0.1` solo deja conectarse desde este PC;
   `0.0.0.0` permite conectarse desde otros dispositivos de tu red (el móvil).

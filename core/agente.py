@@ -25,6 +25,7 @@ import threading
 from pathlib import Path
 from typing import Any, Callable
 
+from config import LLM_ACTIVO
 from core.executor import Confirmar, ejecutar_orden
 from core.memoria import registrar_episodio
 from core.registro import REGISTRO
@@ -41,17 +42,33 @@ def limpiar_texto(texto: str) -> str:
 class Agente:
     def __init__(self, router: Router | None = None,
                  registro: dict[str, Skill] | None = None,
-                 ruta_episodios: Path | None = None):
-        self.registro = registro or REGISTRO
-        self.router = router or Router(self.registro)
+                 ruta_episodios: Path | None = None,
+                 usar_llm: bool = LLM_ACTIVO, llm_cpu: bool = False):
+        self.registro = REGISTRO if registro is None else registro
+        self.router = router or Router(self.registro, usar_llm=usar_llm, llm_cpu=llm_cpu)
         self.ruta_episodios = ruta_episodios
         self._lock = threading.Lock()
+
+    # --- LLM -------------------------------------------------------------------
 
     def precargar(self) -> None:
         """Carga el LLM en segundo plano para que la primera orden dudosa no espere."""
         precargar = getattr(self.router, "precargar", None)
         if precargar is not None:
             threading.Thread(target=precargar, daemon=True, name="precarga-llm").start()
+
+    def activar_llm(self, activo: bool) -> dict[str, Any]:
+        """Activa o desactiva el LLM en marcha (desactivarlo libera la VRAM)."""
+        if hasattr(self.router, "activar_llm"):
+            self.router.activar_llm(activo)
+            if activo:
+                self.precargar()
+        return self.estado_llm()
+
+    def estado_llm(self) -> dict[str, Any]:
+        if hasattr(self.router, "estado_llm"):
+            return self.router.estado_llm()
+        return {"activo": False, "cargado": False, "modelo": None, "gpu": None}
 
     # --- Por pasos (API) -----------------------------------------------------
 

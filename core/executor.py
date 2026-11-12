@@ -82,7 +82,7 @@ def ejecutar_orden(
     estado: EstadoMundo | None = None,
     ruta_episodios: Path | None = None,
 ) -> Resultado:
-    registro = registro or REGISTRO
+    registro = REGISTRO if registro is None else registro
     skill = registro.get(nombre)
     if skill is None:
         return Resultado(False, f"No existe ninguna skill llamada '{nombre}'.")

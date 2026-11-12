@@ -90,8 +90,15 @@ def _escribir(texto: str) -> None:
     if texto.isascii() or not PYPERCLIP_DISPONIBLE:
         pyautogui.typewrite(texto, interval=0.05)
     else:
+        try:
+            anterior = pyperclip.paste()
+        except pyperclip.PyperclipException:
+            anterior = None
         pyperclip.copy(texto)
         pyautogui.hotkey("ctrl", "v")
+        time.sleep(0.2)  # que la app lea el portapapeles antes de restaurarlo
+        if anterior is not None:
+            pyperclip.copy(anterior)  # no pisar lo que el usuario tenía copiado
 
 
 def tiene_pasos_definitivos(plantilla: list[dict]) -> bool:
@@ -209,6 +216,12 @@ def reproducir_plantilla(plantilla: list[dict], slot: str) -> LogEjecucion:
 
         except Exception as e:
             log.error(descripcion, str(e))
+
+        # Un paso fallido deja la pantalla en un estado desconocido: seguir
+        # haría clics (quizá el último, el "definitivo") en el sitio equivocado.
+        if log.pasos and log.pasos[-1]["estado"] == "ERROR":
+            print(f"\n  Ejecución interrumpida en paso {i + 1}.")
+            break
 
         time.sleep(ESPERA_ENTRE_EVENTOS)
 

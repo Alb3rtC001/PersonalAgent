@@ -120,7 +120,7 @@ def test_verbo_desconocido_pregunta_al_llm():
 
 def test_sin_llm_disponible_usa_el_clasificador():
     router, _ = _router(("abrir_aplicacion", 0.95, ["porfa"]),
-                        ResultadoLLM(None, motivo="El LLM local no está disponible."))
+                        ResultadoLLM(None, motivo="El LLM local no está disponible.", disponible=False))
     i = router.interpretar("abre discord porfa")
     assert i.skill == "abrir_aplicacion" and i.origen == "clasificador"
 

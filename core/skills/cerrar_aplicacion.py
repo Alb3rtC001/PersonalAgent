@@ -57,6 +57,7 @@ PROCESOS_PROTEGIDOS = {
     "shellexperiencehost.exe", "runtimebroker.exe", "taskhostw.exe",
 }
 SEPARADORES_TITULO = (" - ", " — ", " | ")
+MAX_NIVELES_PADRE = 8   # tope al subir por los procesos padre (por si acaso)
 
 
 def ventana_de_app(ventana: dict, nombres: list[str]) -> bool:
@@ -98,7 +99,7 @@ def _raiz_de_app(pid: int, propios: set[int]):
     """
     raiz = psutil.Process(pid)
     windows = Path(os.environ.get("SystemRoot", r"C:\Windows")).resolve()
-    while True:
+    for _ in range(MAX_NIVELES_PADRE):
         try:
             padre = raiz.parent()
             if padre is None or padre.pid in propios or _protegido(padre.name()):

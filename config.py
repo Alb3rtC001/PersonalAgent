@@ -6,6 +6,7 @@ detectan automáticamente la primera vez que se importa este módulo
 y se reutilizan en todo el sistema sin volver a consultar el hardware.
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -44,7 +45,11 @@ ALIAS_APLICACIONES = {
 # LLM local (fase 3, ver ARQUITECTURA.md §10 y models/README.md)
 # ---------------------------------------------------------------------------
 # Si el clasificador no está seguro, se pregunta al LLM. Con False (o si no
-# están los archivos de models/) el agente funciona solo con el clasificador.
+# están los archivos de models/) el agente funciona solo con el clasificador
+# y no usa la GPU. Otras formas de desactivarlo sin tocar este archivo:
+#   - al arrancar:     python dispatcher.py --sin-llm      (o python -m api --sin-llm)
+#   - variable:        $env:PERSONALAGENT_LLM = "off"      ("cpu" = sin GPU)
+#   - en marcha:       escribe "llm off" / "llm on" en la consola (o POST /llm en la API)
 LLM_ACTIVO = True
 RUTA_MODELOS = Path(__file__).parent / "models"
 RUTA_LLAMA_SERVER = RUTA_MODELOS / "llama.cpp" / "llama-server.exe"
@@ -59,6 +64,19 @@ LLM_PUERTO = 8766            # solo en 127.0.0.1
 LLM_CAPAS_GPU = 99           # 99 = todo el modelo en la GPU; 0 = solo CPU (mucho más lento)
 LLM_CONTEXTO = 4096
 LLM_ESPERA_ARRANQUE = 120    # segundos máximos para cargar el modelo
+# Si no se usa en este tiempo, el modelo se descarga y libera la VRAM; se
+# vuelve a cargar solo (unos 4 s) la próxima vez que haga falta. 0 = nunca.
+LLM_DESCARGAR_TRAS = 15 * 60
+
+# Variable de entorno PERSONALAGENT_LLM: "off" desactiva el LLM, "cpu" lo usa
+# sin GPU (mucho más lento), "on"/"gpu" lo activa.
+_modo_llm = os.environ.get("PERSONALAGENT_LLM", "").strip().lower()
+if _modo_llm in ("0", "off", "no", "false", "desactivado"):
+    LLM_ACTIVO = False
+elif _modo_llm == "cpu":
+    LLM_ACTIVO, LLM_CAPAS_GPU = True, 0
+elif _modo_llm in ("1", "on", "si", "sí", "true", "gpu"):
+    LLM_ACTIVO = True
 
 # Datos generados por el agente (no se suben a git).
 RUTA_DATOS = Path(__file__).parent / "data"

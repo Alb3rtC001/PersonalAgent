@@ -36,8 +36,16 @@ class ClienteAPI:
             with urllib.request.urlopen(peticion, timeout=120) as r:
                 return json.loads(r.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
-            detalle = json.loads(e.read().decode("utf-8")).get("detail", e.reason)
+            cuerpo = e.read().decode("utf-8", errors="replace")
+            try:
+                detalle = json.loads(cuerpo).get("detail", e.reason)
+            except (ValueError, AttributeError):
+                detalle = cuerpo.strip()[:200] or e.reason   # p. ej. un error 500 en texto plano
             raise RuntimeError(f"HTTP {e.code}: {detalle}") from None
+        except (urllib.error.URLError, OSError) as e:   # servidor caído, timeout...
+            raise RuntimeError(f"No hay respuesta del servidor ({getattr(e, 'reason', e)}).") from None
+        except ValueError:
+            raise RuntimeError("El servidor ha devuelto una respuesta que no es JSON.") from None
 
 
 def mostrar(respuesta: dict) -> None:
@@ -75,17 +83,29 @@ def main() -> None:
 
     try:
         salud = cliente.llamar("GET", "/salud")
-    except (urllib.error.URLError, OSError):
+    except RuntimeError:
         sys.exit(f"No hay servidor en {args.url}. Arráncalo con: python -m api")
     print(f"Conectado a {args.url} ({salud['skills']} skills). Escribe una orden o 'salir'.")
+    print("'llm off' / 'llm on' desactiva o activa el LLM del servidor; 'llm' muestra su estado.")
 
     while True:
         try:
-            texto = input("> ").strip()
+            texto = input("> ").replace("﻿", "").strip()  # BOM que mete la consola
         except (EOFError, KeyboardInterrupt):
             break
         if texto.lower() == "salir":
             break
+        if texto.lower() in ("llm", "llm on", "llm off"):
+            try:
+                if texto.lower() == "llm":
+                    estado = cliente.llamar("GET", "/llm")
+                else:
+                    estado = cliente.llamar("POST", "/llm", {"activo": texto.lower() == "llm on"})
+                print(f"  LLM {'activo' if estado['activo'] else 'desactivado'}"
+                      f"{' (cargado)' if estado['cargado'] else ''}.")
+            except RuntimeError as e:
+                print(f"✘ {e}")
+            continue
         if texto:
             print("  … enviando (puede tardar si hay que esperar a que se abra una app)")
             try:

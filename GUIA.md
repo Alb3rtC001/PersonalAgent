@@ -50,12 +50,18 @@ fase 6, cuando haya cientos de órdenes reales registradas (sección 7).
 ```powershell
 .\.venv\Scripts\Activate.ps1      # si usas el entorno virtual
 python .\dispatcher.py            # consola directa
+python .\dispatcher.py --sin-llm  # solo el clasificador: no usa la GPU
 # o bien: python -m api  (y en otra terminal: python .\cliente.py)
 ```
 
 - Al arrancar verás `… Cargando el modelo de lenguaje…` (unos 4 s, en
-  segundo plano). Mientras el agente está abierto el LLM ocupa ~5,4 GB de
-  la GPU; al salir (`salir` o Ctrl+C) se libera.
+  segundo plano). Mientras está cargado, el LLM ocupa ~5,4 GB de la GPU.
+  Se libera al salir, al escribir `llm off`, o solo tras 15 min sin usarlo
+  (`LLM_DESCARGAR_TRAS`); vuelve a cargarse cuando hace falta.
+- `llm` muestra su estado; `llm off` / `llm on` lo desactiva o activa en
+  marcha (también en `cliente.py` y con `POST /llm` en la API). Sin LLM
+  el agente sigue funcionando con el clasificador: entiende tus frases
+  entrenadas y rechaza las nuevas.
 - Si una orden la interpreta el LLM y la acción tiene consecuencias
   (cerrar una app), **te pedirá confirmación**. Las que reconoce el
   clasificador no preguntan.

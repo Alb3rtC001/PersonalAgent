@@ -38,6 +38,13 @@ def cargar_episodios(ruta: Path | None = None, limite: int | None = None) -> lis
     ruta = Path(ruta) if ruta else RUTA_EPISODIOS
     if not ruta.exists():
         return []
+    episodios = []
     with _lock, open(ruta, encoding="utf-8") as f:
-        episodios = [json.loads(linea) for linea in f if linea.strip()]
+        for linea in f:
+            if not linea.strip():
+                continue
+            try:
+                episodios.append(json.loads(linea))
+            except json.JSONDecodeError:
+                continue  # línea a medio escribir (cierre brusco): se ignora
     return episodios[-limite:] if limite else episodios

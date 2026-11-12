@@ -36,6 +36,7 @@ import httpx
 from config import (
     LLM_CAPAS_GPU,
     LLM_CONTEXTO,
+    LLM_DESCARGAR_TRAS,
     LLM_ESPERA_ARRANQUE,
     LLM_PLANTILLA_CHAT,
     LLM_PUERTO,
@@ -51,6 +52,8 @@ log = logging.getLogger("personalagent")
 RUTA_EJEMPLOS = Path(__file__).parent / "llm_ejemplos.json"
 NINGUNA = "ninguna"
 CREATE_NO_WINDOW = 0x08000000
+REINTENTO_TRAS_FALLO = 300   # s sin volver a intentar arrancar el LLM si falló
+NO_DISPONIBLE = "El LLM local no está disponible."
 
 INSTRUCCIONES = """\
 Eres el intérprete de órdenes de un asistente que controla un PC con Windows.
@@ -77,11 +80,59 @@ Skills disponibles:
 # Servidor
 # ---------------------------------------------------------------------------
 
+def _atar_a_este_proceso(proceso: subprocess.Popen):
+    """
+    Mete el proceso en un "Job Object" de Windows que se cierra cuando muere
+    este programa. Así llama-server no se queda ocupando la VRAM si el agente
+    se cierra de golpe (ventana cerrada, Ctrl+C doble, cuelgue...), cuando
+    atexit no llega a ejecutarse. Devuelve el handle (hay que conservarlo).
+    """
+    try:
+        import ctypes
+        import ctypes.wintypes as wt
+
+        class IO_COUNTERS(ctypes.Structure):
+            _fields_ = [(n, ctypes.c_ulonglong) for n in (
+                "ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
+                "ReadTransferCount", "WriteTransferCount", "OtherTransferCount")]
+
+        class BASIC_LIMIT(ctypes.Structure):
+            _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64), ("PerJobUserTimeLimit", ctypes.c_int64),
+                        ("LimitFlags", wt.DWORD), ("MinimumWorkingSetSize", ctypes.c_size_t),
+                        ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", wt.DWORD),
+                        ("Affinity", ctypes.c_size_t), ("PriorityClass", wt.DWORD),
+                        ("SchedulingClass", wt.DWORD)]
+
+        class EXTENDED_LIMIT(ctypes.Structure):
+            _fields_ = [("BasicLimitInformation", BASIC_LIMIT), ("IoInfo", IO_COUNTERS),
+                        ("ProcessMemoryLimit", ctypes.c_size_t), ("JobMemoryLimit", ctypes.c_size_t),
+                        ("PeakProcessMemoryUsed", ctypes.c_size_t), ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.CreateJobObjectW.restype = wt.HANDLE
+        kernel32.SetInformationJobObject.argtypes = [wt.HANDLE, ctypes.c_int, ctypes.c_void_p, wt.DWORD]
+        kernel32.AssignProcessToJobObject.argtypes = [wt.HANDLE, wt.HANDLE]
+
+        job = kernel32.CreateJobObjectW(None, None)
+        if not job:
+            return None
+        info = EXTENDED_LIMIT()
+        info.BasicLimitInformation.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        if not kernel32.SetInformationJobObject(job, 9, ctypes.byref(info), ctypes.sizeof(info)):
+            return None
+        if not kernel32.AssignProcessToJobObject(job, wt.HANDLE(int(proceso._handle))):
+            return None
+        return job
+    except (OSError, AttributeError):  # no es Windows
+        return None
+
+
 class ServidorLLM:
     def __init__(self, ejecutable: Path = RUTA_LLAMA_SERVER, modelo: Path = RUTA_MODELO_LLM,
                  puerto: int = LLM_PUERTO, capas_gpu: int = LLM_CAPAS_GPU,
                  contexto: int = LLM_CONTEXTO, plantilla: str | None = LLM_PLANTILLA_CHAT,
-                 espera_max: float = LLM_ESPERA_ARRANQUE):
+                 espera_max: float = LLM_ESPERA_ARRANQUE,
+                 descargar_tras: float = LLM_DESCARGAR_TRAS):
         self.ejecutable = Path(ejecutable)
         self.modelo = Path(modelo)
         self.puerto = puerto
@@ -89,9 +140,16 @@ class ServidorLLM:
         self.contexto = contexto
         self.plantilla = plantilla
         self.espera_max = espera_max
+        self.descargar_tras = descargar_tras   # segundos sin uso; 0 = nunca
         self.url = f"http://127.0.0.1:{puerto}"
         self._proceso: subprocess.Popen | None = None
+        self._job = None
+        self._salida = None
         self._lock = threading.Lock()
+        self._ultimo_uso = time.monotonic()
+        self._no_reintentar_hasta = 0.0
+        self._vigilante: threading.Thread | None = None
+        atexit.register(self.parar)
 
     def archivos_presentes(self) -> bool:
         return self.ejecutable.is_file() and self.modelo.is_file()
@@ -102,49 +160,108 @@ class ServidorLLM:
         except httpx.HTTPError:
             return False
 
+    def cargado_por_nosotros(self) -> bool:
+        return self._proceso is not None and self._proceso.poll() is None
+
     def asegurar(self) -> bool:
         """Deja el servidor listo (arrancándolo si hace falta). False si no es posible."""
         with self._lock:
+            self._ultimo_uso = time.monotonic()
             if self.activo():
                 return True
+            if time.monotonic() < self._no_reintentar_hasta:
+                return False  # falló hace poco: no hacer esperar cada orden
             if not self.archivos_presentes():
-                log.warning("No encuentro el LLM en %s (ver models/README.md).", self.ejecutable.parent.parent)
+                log.warning("No encuentro el LLM en %s (ver models/README.md). Sigo solo con el clasificador.",
+                            self.ejecutable.parent.parent)
+                self._no_reintentar_hasta = float("inf")
                 return False
-            if self._proceso is None or self._proceso.poll() is not None:
-                log.info("Cargando el modelo de lenguaje (%s)…", self.modelo.name)
-                comando = [str(self.ejecutable), "-m", str(self.modelo), "--host", "127.0.0.1",
-                           "--port", str(self.puerto), "-ngl", str(self.capas_gpu),
-                           "-c", str(self.contexto), "--no-webui"]
-                if self.plantilla:
-                    comando += ["--chat-template", self.plantilla]
-                RUTA_DATOS.mkdir(parents=True, exist_ok=True)
-                salida = open(RUTA_DATOS / "llm_servidor.log", "w", encoding="utf-8")
-                self._proceso = subprocess.Popen(comando, stdout=salida, stderr=subprocess.STDOUT,
-                                                 creationflags=CREATE_NO_WINDOW)
-                atexit.register(self.parar)
+            if not self.cargado_por_nosotros():
+                self._arrancar()
 
+            proceso = self._proceso
             limite = time.monotonic() + self.espera_max
             while time.monotonic() < limite:
-                if self._proceso.poll() is not None:
-                    log.warning("El servidor del LLM se ha cerrado al arrancar (ver data/llm_servidor.log).")
+                if self._proceso is not proceso:
+                    return False   # lo han parado a propósito (llm off) mientras cargaba
+                if proceso.poll() is not None:
+                    log.warning("El servidor del LLM se ha cerrado al arrancar (¿falta VRAM? ver "
+                                "data/llm_servidor.log). Sigo solo con el clasificador; lo reintento "
+                                "en %d min.", REINTENTO_TRAS_FALLO // 60)
+                    self._cerrar_salida()
+                    self._no_reintentar_hasta = time.monotonic() + REINTENTO_TRAS_FALLO
                     return False
                 if self.activo():
+                    self._ultimo_uso = time.monotonic()
                     return True
                 time.sleep(0.5)
             log.warning("El LLM no ha terminado de cargar en %d s.", self.espera_max)
             return False
 
-    def parar(self) -> None:
-        """Para el servidor si lo arrancamos nosotros."""
-        if self._proceso is not None and self._proceso.poll() is None:
-            self._proceso.terminate()
+    def _arrancar(self) -> None:
+        modo = "GPU" if self.capas_gpu else "CPU, más lento"
+        log.info("Cargando el modelo de lenguaje (%s, %s)…", self.modelo.name, modo)
+        comando = [str(self.ejecutable), "-m", str(self.modelo), "--host", "127.0.0.1",
+                   "--port", str(self.puerto), "-ngl", str(self.capas_gpu),
+                   "-c", str(self.contexto), "--no-webui"]
+        if self.plantilla:
+            comando += ["--chat-template", self.plantilla]
+        RUTA_DATOS.mkdir(parents=True, exist_ok=True)
+        self._cerrar_salida()
+        self._salida = open(RUTA_DATOS / "llm_servidor.log", "w", encoding="utf-8")
+        self._proceso = subprocess.Popen(comando, stdout=self._salida, stderr=subprocess.STDOUT,
+                                         creationflags=CREATE_NO_WINDOW)
+        self._job = _atar_a_este_proceso(self._proceso)
+        if self.descargar_tras and (self._vigilante is None or not self._vigilante.is_alive()):
+            self._vigilante = threading.Thread(target=self._vigilar_inactividad, daemon=True,
+                                               name="descarga-llm")
+            self._vigilante.start()
+
+    def _vigilar_inactividad(self) -> None:
+        """Descarga el modelo (libera la VRAM) tras `descargar_tras` segundos sin usarlo."""
+        while self.cargado_por_nosotros():
+            time.sleep(min(30.0, self.descargar_tras))
+            with self._lock:
+                inactivo = time.monotonic() - self._ultimo_uso
+                if self.cargado_por_nosotros() and inactivo >= self.descargar_tras:
+                    tiempo = f"{inactivo / 60:.0f} min" if inactivo >= 90 else f"{inactivo:.0f} s"
+                    log.info("LLM sin usar desde hace %s: lo descargo para liberar la GPU "
+                             "(se vuelve a cargar solo si hace falta).", tiempo)
+                    self._parar_sin_lock()
+
+    def _cerrar_salida(self) -> None:
+        if self._salida is not None:
+            self._salida.close()
+            self._salida = None
+
+    def _parar_sin_lock(self) -> None:
+        # Primero se "suelta" el proceso: si otro hilo lo está esperando mientras
+        # carga, así sabe que lo han parado a propósito y no que ha fallado.
+        proceso, self._proceso = self._proceso, None
+        if proceso is not None and proceso.poll() is None:
+            proceso.terminate()
             try:
-                self._proceso.wait(timeout=10)
+                proceso.wait(timeout=10)
             except subprocess.TimeoutExpired:
-                self._proceso.kill()
-        self._proceso = None
+                proceso.kill()
+        self._cerrar_salida()
+
+    def parar(self) -> None:
+        """Para el servidor si lo arrancamos nosotros (libera la VRAM)."""
+        # Con espera limitada: al salir del programa otro hilo puede estar a mitad
+        # de cargar el modelo con el lock cogido, y no hay que esperarle 2 minutos.
+        cogido = self._lock.acquire(timeout=3)
+        try:
+            self._parar_sin_lock()
+        finally:
+            if cogido:
+                self._lock.release()
+
+    def permitir_reintento(self) -> None:
+        self._no_reintentar_hasta = 0.0
 
     def completar(self, mensajes: list[dict], esquema: dict, max_tokens: int = 200) -> str:
+        self._ultimo_uso = time.monotonic()
         r = httpx.post(f"{self.url}/v1/chat/completions", timeout=60, json={
             "messages": mensajes,
             "temperature": 0,
@@ -268,6 +385,8 @@ class ResultadoLLM:
     no_anclados: set[str] = field(default_factory=set)
     # Skill que propuso el modelo aunque se haya rechazado (por un valor inventado).
     propuesta: str | None = None
+    # False si no se pudo consultar al LLM: el router usa entonces el clasificador.
+    disponible: bool = True
 
 
 class InterpreteLLM:
@@ -283,13 +402,22 @@ class InterpreteLLM:
 
     def interpretar(self, texto: str) -> ResultadoLLM:
         if not self.servidor.asegurar():
-            return ResultadoLLM(None, motivo="El LLM local no está disponible.")
+            return ResultadoLLM(None, motivo=NO_DISPONIBLE, disponible=False)
         try:
             crudo = self.servidor.completar(construir_mensajes(texto, self.registro, self.ejemplos),
                                             self.esquema)
-            datos = json.loads(crudo)
-        except (httpx.HTTPError, json.JSONDecodeError, KeyError) as e:
+        except httpx.HTTPError as e:
+            # El servidor se ha caído o se ha descargado justo ahora.
+            log.warning("No pude consultar al LLM (%s).", e)
+            return ResultadoLLM(None, motivo=NO_DISPONIBLE, disponible=False)
+        except (KeyError, IndexError, ValueError) as e:
             return ResultadoLLM(None, motivo=f"El LLM no ha devuelto una respuesta válida ({e}).")
+        try:
+            datos = json.loads(crudo)
+        except json.JSONDecodeError as e:
+            return ResultadoLLM(None, motivo=f"El LLM no ha devuelto una respuesta válida ({e}).", crudo=crudo)
+        if not isinstance(datos, dict):
+            return ResultadoLLM(None, motivo="El LLM no ha devuelto una respuesta válida.", crudo=crudo)
         return self.validar(datos, texto, crudo)
 
     def validar(self, datos: dict, texto: str, crudo: str = "") -> ResultadoLLM:

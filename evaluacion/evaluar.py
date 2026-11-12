@@ -94,7 +94,7 @@ def main() -> None:
         opciones["plantilla"] = None if args.plantilla == "nativa" else args.plantilla
     servidor = ServidorLLM(**opciones)
     llm = InterpreteLLM(REGISTRO, servidor=servidor)
-    router = Router(REGISTRO, llm=llm)
+    router = Router(REGISTRO, llm=llm, usar_llm=True)
     vias = ["clasificador", "llm", "hibrido"] if args.via == "todas" else [args.via]
 
     if "llm" in vias or "hibrido" in vias:

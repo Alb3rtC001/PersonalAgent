@@ -9,7 +9,8 @@ Router híbrido: frase → skill + parámetros.
    verbo nuevo: en "reinicia steam" el clasificador solo vería "steam").
 
 Cada Interpretacion dice de dónde salió (`origen`): "clasificador" o "llm".
-Si el LLM no está disponible, se comporta como el router v0.
+Si el LLM no está disponible o está desactivado (activar_llm(False),
+--sin-llm, LLM_ACTIVO=False), se comporta como el router v0 y no usa la GPU.
 """
 
 from __future__ import annotations
@@ -70,18 +71,50 @@ class Router:
     def __init__(self, registro: dict[str, Skill] | None = None,
                  umbral: float = UMBRAL_CONFIANZA,
                  clasificador: Clasificador | None = None,
-                 llm=None, usar_llm: bool = LLM_ACTIVO):
-        self.registro = registro or REGISTRO
+                 llm=None, usar_llm: bool = LLM_ACTIVO, llm_cpu: bool = False):
+        self.registro = REGISTRO if registro is None else registro
         self.umbral = umbral
         self.clasificador = clasificador or ClasificadorBow()
-        if llm is None and usar_llm:
-            from core.llm import InterpreteLLM
-            llm = InterpreteLLM(self.registro)
-        self.llm = llm
+        self.llm = llm                  # se crea al activarlo por primera vez
+        self._llm_cpu = llm_cpu
+        self.usar_llm = usar_llm
+
+    # --- Control del LLM -------------------------------------------------------
+
+    def _crear_llm(self):
+        from core.llm import InterpreteLLM, ServidorLLM
+        servidor = ServidorLLM(capas_gpu=0) if self._llm_cpu else ServidorLLM()
+        return InterpreteLLM(self.registro, servidor=servidor)
+
+    def activar_llm(self, activo: bool) -> None:
+        """
+        Activa o desactiva el LLM en marcha. Al desactivarlo se descarga el
+        modelo (libera la VRAM) y el agente sigue solo con el clasificador.
+        """
+        self.usar_llm = activo
+        if activo:
+            if self.llm is None:
+                self.llm = self._crear_llm()
+            servidor = getattr(self.llm, "servidor", None)
+            if hasattr(servidor, "permitir_reintento"):
+                servidor.permitir_reintento()
+        elif self.llm is not None and hasattr(getattr(self.llm, "servidor", None), "parar"):
+            self.llm.servidor.parar()
+
+    def estado_llm(self) -> dict[str, Any]:
+        servidor = getattr(self.llm, "servidor", None) if self.llm is not None else None
+        return {
+            "activo": self.usar_llm,
+            "cargado": bool(servidor is not None and hasattr(servidor, "activo") and servidor.activo()),
+            "modelo": getattr(getattr(servidor, "modelo", None), "name", None),
+            "gpu": bool(getattr(servidor, "capas_gpu", 0)) if servidor is not None else None,
+        }
 
     def precargar(self) -> None:
         """Arranca el LLM por adelantado (para que la primera orden dudosa no espere)."""
-        if self.llm is not None:
+        if self.usar_llm:
+            if self.llm is None:
+                self.llm = self._crear_llm()
             self.llm.disponible()
 
     def clasificar(self, texto: str) -> tuple[str, float]:
@@ -119,21 +152,26 @@ class Router:
 
     def interpretar(self, texto: str) -> Interpretacion:
         interp, dudosa = self.interpretar_clasificador(texto)
-        if not dudosa or self.llm is None:
+        if not dudosa or not self.usar_llm:
             return interp
+        if self.llm is None:
+            self.llm = self._crear_llm()
 
         r = self.llm.interpretar(texto)
-        if r.skill is None and r.motivo == "El LLM local no está disponible.":
+        if not getattr(r, "disponible", True):
             return interp  # sin LLM: lo que dijo el clasificador
         log.debug("LLM: %s", r.crudo)
         # Si ambos coinciden en la skill y el LLM reformuló un valor que no está
         # en la frase ("tareas administrativas"), vale más el del clasificador,
-        # que siempre es un trozo literal de lo que dijo el usuario.
+        # que siempre es un trozo literal de lo que dijo el usuario. Si el
+        # clasificador no tiene ese valor, se quita y se le preguntará al usuario.
         if interp.skill and (r.skill or r.propuesta) == interp.skill:
             params = dict(r.params)
             for clave in r.no_anclados:
                 if interp.params.get(clave):
                     params[clave] = interp.params[clave]
+                else:
+                    params.pop(clave, None)
             return Interpretacion(texto, interp.skill, interp.confianza, skill=interp.skill,
                                   params=params, origen="llm")
         params = dict(r.params) if r.skill else {}

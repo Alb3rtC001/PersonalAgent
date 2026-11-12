@@ -181,6 +181,15 @@ tests/
 | Sin contexto entre órdenes ("abre WhatsApp" → "llama a mamá")            | `core/sesion.py` con caducidad                                   | 4 |
 | `requirements.txt` con paquetes que no se usan                           | Limpiarlo y separar dependencias opcionales                      | 1 ✅ |
 | `.gitignore` con rutas con `\` que git no entiende                       | Reescribirlo                                                     | 1 ✅ |
+| *Revisión de la fase 3:* la caché PID → proceso no caducaba; con la API días encendida, un PID reutilizado podía hacer que "cierra discord" cerrase otra app | La caché vive solo durante una enumeración de ventanas | 3 ✅ |
+| El reproductor seguía tras un paso fallido (podía hacer el clic "definitivo" en el sitio equivocado) | Se detiene en el primer error | 3 ✅ |
+| Pegar texto con tildes machacaba el portapapeles del usuario | Se restaura tras pegar | 3 ✅ |
+| `llama-server` quedaba vivo (ocupando VRAM) si el agente moría de golpe | Job Object de Windows: muere con el agente | 3 ✅ |
+| Si el LLM no arrancaba (sin VRAM), cada orden esperaba otro intento | Reintento cada 5 min; sin archivos, no se reintenta | 3 ✅ |
+| Una línea a medio escribir en `episodios.jsonl` rompía `/episodios` | Se ignora | 3 ✅ |
+| `cliente.py` se cerraba con un traceback si el servidor caía o respondía un error no JSON | Errores capturados y mostrados | 3 ✅ |
+| Sin forma de desactivar el LLM sin editar código | `--sin-llm`, `llm off/on`, `POST /llm`, `PERSONALAGENT_LLM`, descarga por inactividad | 3 ✅ |
+| `abrir_aplicacion` da por buena cualquier ventana nueva (una notificación que aparezca a la vez cuenta como éxito) | Pendiente: exigir que la ventana nueva sea de un proceso lanzado tras la orden (ojo con el Explorador, que reutiliza explorer.exe) | 5 |
 
 ---
 
@@ -235,6 +244,9 @@ Cada fase termina con algo que funciona de punta a punta.
 - **Python 3.14:** algunas librerías (p. ej. CUDA para PyTorch) pueden tardar
   en tener versión compatible. Si hace falta GPU para entrenar, valorar un
   entorno separado con Python 3.12.
+- **VRAM:** el LLM ocupa ~5,4 GB de 8. Si otra cosa (un juego) necesita la
+  GPU: `llm off`, `--sin-llm` o esperar a que se descargue solo por
+  inactividad. Sin LLM el agente sigue funcionando con el clasificador.
 - **Seguridad de la API:** escucha solo en `127.0.0.1` y exige token. Para
   el móvil habrá que abrirla a la red local (`0.0.0.0`) y, como el token
   viaja en claro por HTTP, valorar HTTPS con certificado autofirmado.
