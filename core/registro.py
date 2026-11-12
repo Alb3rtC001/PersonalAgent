@@ -10,6 +10,7 @@ Si una plantilla tiene el mismo nombre que una skill nativa, gana la nativa.
 
 from core.skills.abrir_aplicacion import AbrirAplicacion
 from core.skills.base import Skill
+from core.skills.cerrar_aplicacion import CerrarAplicacion
 from core.skills.crear_nota import CrearNota
 from core.skills.plantilla import cargar_skills_plantilla
 from core.skills.restaurar_ventana import RestaurarVentana
@@ -17,6 +18,7 @@ from core.skills.restaurar_ventana import RestaurarVentana
 SKILLS_NATIVAS: list[Skill] = [
     CrearNota(),
     AbrirAplicacion(),
+    CerrarAplicacion(),
     RestaurarVentana(),
 ]
 

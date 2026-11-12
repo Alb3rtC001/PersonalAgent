@@ -12,7 +12,7 @@ agente autónomo con planificación abierta -> Gestión por voz para Móvil con 
 
 > **Nueva arquitectura:** ver [ARQUITECTURA.md](ARQUITECTURA.md).
 > Todo lo que el agente sabe hacer son *skills* en `core/skills/`
-> (`crear_nota`, `abrir_aplicacion`, `restaurar_ventana`) más las
+> (`crear_nota`, `abrir_aplicacion`, `cerrar_aplicacion`, `restaurar_ventana`) más las
 > plantillas grabadas publicadas en `recorder/catalogo.json`.
 > Cada orden queda registrada en `data/episodios.jsonl`.
 
@@ -81,6 +81,8 @@ python .\dispatcher.py
 | `crea una nota`                          | Te pregunta qué apuntar y luego la crea                            |
 | `abre la calculadora`                    | Abre la Calculadora y comprueba que aparece su ventana             |
 | `abre discrod`                           | Abre Discord aunque esté mal escrito. Si ya estaba abierto (aunque esté escondido en la bandeja del sistema) lo trae al frente en vez de relanzarlo |
+| `cierra la calculadora`                  | La cierra como si pulsaras su X. Si ya estaba cerrada, lo dice     |
+| `cierra discord`                         | Pulsa su X; como Discord solo se esconde en la bandeja del sistema, termina su proceso para cerrarlo del todo (se desactiva con `CERRAR_TERMINA_BANDEJA` en `config.py`). Si una app pregunta "¿Guardar cambios?", no fuerza nada |
 | `quiero jugar a <juego>`                 | Si Steam está cerrado lo abre, si está minimizado lo restaura, y luego reproduce la plantilla grabada (pide confirmación antes del último clic) |
 | `qué tiempo hace hoy`                    | Lo rechaza: no sabe hacerlo                                        |
 
@@ -149,7 +151,7 @@ asistente/
 │   ├── estado.py           # Ventanas, monitores y hechos del mundo (antes window_manager.py)
 │   ├── memoria.py          # Episodios (data/episodios.jsonl)
 │   ├── registro.py         # Catálogo de skills
-│   └── skills/             # base.py, crear_nota, abrir_aplicacion, restaurar_ventana, plantilla
+│   └── skills/             # base.py, crear_nota, abrir/cerrar_aplicacion, restaurar_ventana, plantilla
 ├── tests/                  # python -m pytest tests
 ├── nlu/                    # Núcleo de comprensión del lenguaje (100% local, sin internet)
 │   ├── dataset.py          # Funciones para gestionar el dataset (agregar_frase, cargar_dataset...)

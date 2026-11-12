@@ -76,8 +76,9 @@ pueda combinar, en vez de categorías fijas del clasificador.
                          │
  Comprensión     Router: frase → {intención | objetivo, parámetros, confianza}
                  v0: clasificador PyTorch actual + slots.py
-                 v1: LLM local (Ollama + Qwen2.5 7B / Llama 3.1 8B) con salida JSON
-                     validada; el clasificador queda como atajo rápido
+                 v1: modelo propio pequeño para las órdenes conocidas + LLM abierto
+                     (llama.cpp + OLMo 3 7B, Apache 2.0) para lo que no entienda,
+                     con salida JSON restringida y validada (ver §10)
                          │
  Planificación   objetivo → secuencia de skills
                  v0: una intención = una skill
@@ -125,6 +126,7 @@ core/                    # Núcleo nuevo
     base.py              # Skill + Resultado + precondiciones/efectos (hecho)
     crear_nota.py        # Skill nativa              (hecho)
     abrir_aplicacion.py  # Skill nativa              (hecho)
+    cerrar_aplicacion.py # Skill nativa              (hecho)
     restaurar_ventana.py # Skill nativa              (hecho)
     plantilla.py         # Adaptador: plantilla grabada → skill (hecho)
   agente.py              # Fachada para los clientes (hecho)
@@ -172,6 +174,7 @@ tests/
 | Abrir apps tecleando en el menú Inicio es frágil                         | Skill nativa: índice del menú Inicio (`Get-StartApps`) + `shell:AppsFolder` | 1 ✅ |
 | El reproductor preguntaba con `input()` (imposible desde una API)        | La confirmación la pide el executor mediante una función inyectada | 1 ✅ |
 | El reproductor no podía escribir tildes ni eñes                          | Texto no ASCII se pega desde el portapapeles                     | 1 ✅ |
+| "cerrar calculadora" abría la Calculadora: el clasificador ignora las palabras que no conoce | Skill `cerrar_aplicacion` + 40 frases de cierre; los verbos desconocidos ("minimiza", "reinicia") quedan por debajo del umbral y se rechazan | 2 ✅ |
 | Clics por coordenadas se rompen al cambiar la pantalla                   | UI Automation (pywinauto) y grabador que guarda controles        | 5 |
 | Clasificador de categorías fijas: no entiende objetivos nuevos ni varios parámetros | LLM local con salida estructurada                     | 3 |
 | Sin contexto entre órdenes ("abre WhatsApp" → "llama a mamá")            | `core/sesion.py` con caducidad                                   | 4 |
@@ -199,9 +202,10 @@ Cada fase termina con algo que funciona de punta a punta.
   `GET /skills`, `GET /episodios`, `GET /salud`. `cliente.py` es una CLI
   que pasa por la API (el mismo camino que usará el móvil); `dispatcher.py`
   sigue disponible sin servidor. Una sola orden se ejecuta a la vez.
-- **Fase 3 — LLM local.** Ollama + modelo 7–8B cuantizado. Frase →
-  JSON `{skill, parametros}` o plan de varias skills, validado contra el
-  catálogo. El clasificador actual responde primero si está muy seguro.
+- **Fase 3 — Router híbrido.** Modelo propio pequeño para las órdenes
+  conocidas + LLM abierto (llama.cpp + OLMo 3 7B) para el resto. Frase →
+  JSON `{skill, parametros}` o plan de varias skills, restringido por
+  esquema y validado contra el catálogo. Decisión y motivos en §10.
 - **Fase 4 — Memoria y contexto.** Contexto de sesión, verificador de éxito
   general, recuperación de episodios parecidos como ejemplos.
 - **Fase 5 — Acciones robustas.** UI Automation; grabador v2 que guarda el
@@ -267,3 +271,75 @@ Plan de evolución (todo local y gratuito):
 3. **Solo si pasa de cientos de miles de vectores:** una base vectorial
    embebida (LanceDB o Chroma en modo local), que también es un archivo y
    no un servidor.
+
+---
+
+## 10. Fase 3: modelo propio + LLM abierto (decisión)
+
+**Criterios** (por orden): 100 % local y sin internet al usarlo; licencia
+sin ataduras (uso, modificación y redistribución libres, sin registro ni
+condiciones de uso); ningún dato sale del PC; el menor sesgo posible y,
+sobre todo, que se pueda auditar.
+
+### Arquitectura híbrida
+
+```
+frase ──► modelo propio pequeño (nlu/, entrenado aquí con tus frases)
+            │  confianza ≥ umbral y sin verbos desconocidos ──► {skill, params}
+            │  si no
+            ▼
+          LLM abierto (llama.cpp + OLMo 3 7B)
+            prompt = catálogo de skills (Skill.describir()) + frase
+            salida RESTRINGIDA por un JSON Schema generado del catálogo:
+            solo puede responder una skill que existe, con sus parámetros
+            ──► validación (Skill.validar) ──► planner/executor como hoy
+```
+
+- El modelo propio responde en milisegundos a lo que ya conoce y es 100 %
+  tuyo. Hoy es el clasificador bag-of-words; en esta fase se sustituye por
+  un transformer pequeño (pocos millones de parámetros) entrenado desde
+  cero con `nlu/dataset.json` + frases generadas, que además extrae los
+  parámetros (adiós a los disparadores de `slots.py`).
+- El LLM solo entra cuando el modelo propio no está seguro. Sus respuestas
+  correctas (confirmadas por el resultado del episodio) se añaden al
+  dataset: con el tiempo el modelo propio cubre más y el LLM se usa menos
+  (fase 6).
+- El sesgo del LLM influye poco: no opina ni redacta, solo elige una skill
+  del catálogo con salida restringida, y el executor confirma lo arriesgado
+  y verifica el resultado.
+
+### Runtime: llama.cpp (no Ollama)
+
+Los dos son MIT y funcionan sin internet. Se elige **llama.cpp** porque:
+
+- Es el motor: Ollama está construido encima de él. Menos capas.
+- Se usa el binario oficial `llama-server` (versiones precompiladas para
+  Windows con CUDA, sin compilar nada), arrancado por el propio agente en
+  `127.0.0.1`: no queda ningún servicio residente ni actualizaciones
+  automáticas.
+- Carga un archivo `.gguf` de tu disco; no hay catálogo online ni cuenta.
+- Admite salida restringida por JSON Schema / gramática GBNF, que es lo que
+  garantiza que solo conteste skills válidas.
+
+Ollama es una alternativa válida (también MIT), pero añade un servicio en
+segundo plano, su propio registro de modelos online y auto-actualización.
+
+### Modelo: OLMo 3 7B Instruct (Ai2, Apache 2.0)
+
+- **Licencia Apache 2.0:** uso, modificación y redistribución libres, sin
+  registro ni límites de uso. Las directrices de "uso responsable" de Ai2
+  son recomendaciones, no condiciones de la licencia.
+- **El más auditable:** a diferencia de Qwen, Mistral, Llama o Gemma (que
+  solo publican los pesos), Ai2 publica también los **datos de
+  entrenamiento, el código y los pasos intermedios**. Es la única forma de
+  saber qué sesgos puede tener un modelo en vez de suponerlo.
+- **Cabe en la GPU:** cuantizado a Q4_K_M ocupa ~4,5 GB (RTX 3060 Ti, 8 GB).
+- **Plan B: Qwen3-8B (Apache 2.0),** más fuerte en español y en elegir
+  herramientas, pero solo publica pesos. La elección final se hace con
+  datos: un conjunto de evaluación propio (frases → skill y parámetros
+  esperados) y se queda el que acierte más. El modelo es un parámetro de
+  `config.py`: cambiarlo es cambiar un archivo.
+- **Descartados:** Llama (licencia propia con condiciones de uso y
+  atribución obligatoria) y Gemma (términos de uso propios).
+- Se usa el archivo GGUF original o una conversión comprobada, y se guarda
+  junto a su licencia en `models/` (no se sube a git).

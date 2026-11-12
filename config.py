@@ -23,7 +23,15 @@ UMBRAL_CONFIANZA = 0.72
 # Segundos que abrir_aplicacion espera a que aparezca la ventana de la app.
 ESPERA_MAX_APERTURA = 30
 
-# Nombres alternativos para abrir_aplicacion: lo que dices -> nombre en el menú Inicio.
+# Segundos que cerrar_aplicacion espera a que la app se cierre tras pedírselo.
+ESPERA_MAX_CIERRE = 10
+
+# Si al pedir que se cierre una app solo se esconde en la bandeja del sistema
+# (Discord, Steam...), terminar su proceso para cerrarla del todo.
+# Nunca se termina si queda alguna ventana visible (p. ej. "¿Guardar cambios?").
+CERRAR_TERMINA_BANDEJA = True
+
+# Nombres alternativos para abrir_aplicacion y cerrar_aplicacion: lo que dices -> nombre en el menú Inicio.
 # Las claves van en minúsculas y sin tildes.
 ALIAS_APLICACIONES = {
     "navegador": "Google Chrome",

@@ -57,6 +57,7 @@ SW_SHOW = 5
 SW_RESTORE = 9
 VK_MENU = 0x12
 KEYEVENTF_KEYUP = 0x2
+WM_CLOSE = 0x0010
 
 _cache_procesos: dict[int, str] = {}
 
@@ -247,6 +248,25 @@ def traer_al_frente(hwnd: int) -> bool:
     _user32.SetForegroundWindow(hwnd)
     time.sleep(0.3)
     return ventana_visible(hwnd)
+
+
+def ventana_existe(hwnd: int) -> bool:
+    """True si la ventana sigue existiendo (visible u oculta)."""
+    return bool(WINDOWS_DISPONIBLE and _user32.IsWindow(hwnd))
+
+
+def ventana_mostrada(hwnd: int) -> bool:
+    """True si la ventana existe y no está oculta (aunque esté minimizada en la barra de tareas)."""
+    return bool(WINDOWS_DISPONIBLE and _user32.IsWindow(hwnd) and _user32.IsWindowVisible(hwnd))
+
+
+def pedir_cierre(hwnd: int) -> bool:
+    """
+    Pide a la ventana que se cierre, igual que pulsar su X (WM_CLOSE). La
+    app decide qué hacer: cerrarse, preguntar si guardar cambios o
+    esconderse en la bandeja del sistema.
+    """
+    return bool(WINDOWS_DISPONIBLE and _user32.PostMessageW(hwnd, WM_CLOSE, 0, 0))
 
 
 def obtener_ventana_activa(monitores: list[dict] | None = None) -> dict:

@@ -27,6 +27,12 @@ DISPARADORES = {
         "ejecutar", "lanza", "lanzar", "arranca", "arrancar",
         "por favor",
     ],
+    "cerrar_aplicacion": [
+        "hazme el favor de cerrar", "puedes cerrarme", "puedes cerrar",
+        "quiero cerrar", "necesito cerrar", "me cierras", "cierrame",
+        "cerrar", "cierra", "sal de", "salir de", "salte de", "quita",
+        "termina", "mata el proceso de", "mata", "por favor",
+    ],
     "crear_nota": [
         "hazme el favor de anotar", "puedes apuntar esto por mi",
         "puedes crear una nota", "quiero crear una nota",

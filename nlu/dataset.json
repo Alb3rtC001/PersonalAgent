@@ -662,5 +662,165 @@
   {
     "frase": "quiero jugar",
     "intencion": "ejecutar_en_steam"
+  },
+  {
+    "frase": "cierra discord",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "cierra steam",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "cierra spotify",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "cierra el navegador",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "cierra chrome",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "cierra la calculadora",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "cierra whatsapp",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "cierra telegram",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "cierra blender",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "cierra obs",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "cierra visual studio code",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "cierra el explorador de archivos",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "cierra el opera",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "cierra epic games",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "cierra la aplicacion de steam",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "cierra la app de notas",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "cerrar discord",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "cerrar la calculadora",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "cerrar steam",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "cerrar el navegador",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "ciérrame discord",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "ciérrame el navegador",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "ciérrame la calculadora",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "quiero cerrar spotify",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "necesito cerrar chrome",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "puedes cerrar discord",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "puedes cerrarme steam",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "me cierras la calculadora",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "me cierras whatsapp",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "hazme el favor de cerrar steam",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "cierra discord por favor",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "sal de discord",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "salir de steam",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "sal de spotify",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "salte de telegram",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "quita discord",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "quita la calculadora",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "termina steam",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "mata discord",
+    "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "mata el proceso de chrome",
+    "intencion": "cerrar_aplicacion"
   }
 ]
