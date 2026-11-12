@@ -13,3 +13,7 @@ data/
 # Grabaciones crudas y sus copias de seguridad
 recorder/recordings.json
 recorder/recordings.backup*.json
+
+# Runtime y modelos del LLM local (binarios y pesos grandes; ver models/README.md)
+models/*
+!models/README.md

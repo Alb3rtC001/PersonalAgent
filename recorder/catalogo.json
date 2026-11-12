@@ -5,6 +5,7 @@
     "descripcion_parametro": "Nombre del juego tal como aparece en la biblioteca de Steam",
     "precondiciones": {"visible:steam": true},
     "efectos": {"lanzado:{juego}": true},
-    "coste": 2
+    "coste": 2,
+    "requiere_confirmacion": true
   }
 }

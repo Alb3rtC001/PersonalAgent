@@ -11,8 +11,8 @@ from core.skills.base import Resultado, Skill
 
 class RestaurarVentana(Skill):
     nombre = "restaurar_ventana"
-    descripcion = ("Trae al frente una aplicación que ya está abierta, restaurándola si está "
-                   "minimizada u oculta en la bandeja del sistema.")
+    descripcion = ("Muestra y trae al frente una aplicación que ya está abierta, restaurándola si "
+                   "está minimizada u oculta en la bandeja del sistema. No sirve para minimizar.")
     parametros = {"aplicacion": "Nombre (o parte del título) de la ventana"}
     coste = 1
     PRECONDICIONES = {"abierta:{aplicacion}": True, "visible:{aplicacion}": False}

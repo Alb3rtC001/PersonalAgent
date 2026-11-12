@@ -147,6 +147,7 @@ class CerrarAplicacion(Skill):
                    "pregunta algo, como guardar cambios.")
     parametros = {"aplicacion": "Nombre de la aplicación, p. ej. 'Discord' o 'calculadora'"}
     coste = 2
+    confirmar_si_llm = True   # cerrar algo por un malentendido ("minimiza" ≠ "cierra") molesta
     EFECTOS = {"abierta:{aplicacion}": False, "visible:{aplicacion}": False}
 
     def __init__(self, espera_max: float = ESPERA_MAX_CIERRE,

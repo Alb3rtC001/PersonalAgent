@@ -59,6 +59,28 @@ python .\nlu\training.py
 
 Al final muestra cómo clasifica unas frases de prueba.
 
+### 2b. LLM local (opcional, recomendado)
+
+Cuando el clasificador no está seguro (frases nuevas como "me haría falta la
+calculadora"), el agente pregunta a un LLM que corre en tu PC sin internet:
+llama.cpp + Qwen3-8B (Apache 2.0). Hay que descargarlo una vez (~5,3 GB);
+los pasos y los hashes están en [models/README.md](models/README.md).
+
+El agente arranca el LLM solo al empezar (tarda unos 4 s, en segundo plano)
+y lo para al salir. Ocupa unos 5,4 GB de memoria de la GPU mientras el
+agente está abierto. Sin los archivos de `models/` (o con `LLM_ACTIVO =
+False` en `config.py`) el agente funciona solo con el clasificador.
+
+Para medir qué tal entiende las órdenes (frases que no están en el
+dataset, en `evaluacion/ordenes.json` y `evaluacion/ordenes_control.json`):
+
+```powershell
+python -m evaluacion.evaluar
+python -m evaluacion.evaluar --ordenes evaluacion\ordenes_control.json
+# Comparar con otro modelo GGUF:
+python -m evaluacion.evaluar --via llm --modelo models\olmo-3-7b-instruct\Olmo-3-7B-Instruct-Q4_K_M.gguf
+```
+
 ## 3. Comprobar que todo está bien
 
 ```powershell
@@ -84,6 +106,9 @@ python .\dispatcher.py
 | `cierra la calculadora`                  | La cierra como si pulsaras su X. Si ya estaba cerrada, lo dice     |
 | `cierra discord`                         | Pulsa su X; como Discord solo se esconde en la bandeja del sistema, termina su proceso para cerrarlo del todo (se desactiva con `CERRAR_TERMINA_BANDEJA` en `config.py`). Si una app pregunta "¿Guardar cambios?", no fuerza nada |
 | `quiero jugar a <juego>`                 | Si Steam está cerrado lo abre, si está minimizado lo restaura, y luego reproduce la plantilla grabada (pide confirmación antes del último clic) |
+| `me haría falta la calculadora`          | Con el LLM: el clasificador no la conoce, el LLM la entiende como `abrir_aplicacion` (~0,5 s) |
+| `ya no necesito la calculadora, quítamela` | Con el LLM: `cerrar_aplicacion`, pero **pide confirmación** antes (cerrar algo por un malentendido molesta) |
+| `minimiza discord`                       | La rechaza: no hay skill para minimizar (no la confunde con otra)   |
 | `qué tiempo hace hoy`                    | Lo rechaza: no sabe hacerlo                                        |
 
 Mientras una orden espera (por ejemplo, a que se abra una app) verás avisos
@@ -116,7 +141,8 @@ Para pararlo, `Ctrl+C` en la terminal del servidor.
 | Archivo                     | Qué contiene                                                     |
 | --------------------------- | ---------------------------------------------------------------- |
 | `data/notas/`               | Notas creadas                                                    |
-| `data/episodios.jsonl`      | Una línea por orden: texto, skill, plan, pasos, si funcionó      |
+| `data/episodios.jsonl`      | Una línea por orden: texto, skill, quién la interpretó (`origen`: clasificador o llm), plan, pasos, si funcionó |
+| `data/llm_servidor.log`     | Salida del servidor del LLM (para diagnosticar si no arranca)    |
 | `data/api_token.txt`        | Token de la API (bórralo para generar uno nuevo)                 |
 
 `data/` no se sube a git. Puedes borrarla entera para empezar de cero.
@@ -126,6 +152,8 @@ Para pararlo, `Ctrl+C` en la terminal del servidor.
 - `UMBRAL_CONFIANZA`: por debajo, el agente no actúa y dice que no está seguro.
 - `ALIAS_APLICACIONES`: nombres alternativos (`"navegador": "Google Chrome"`).
 - `ESPERA_MAX_APERTURA`: segundos que espera a que aparezca la ventana de una app (30 por defecto).
+- `LLM_ACTIVO`: `False` para no usar el LLM. `RUTA_MODELO_LLM` para usar otro modelo GGUF;
+  `LLM_CAPAS_GPU = 0` para usarlo sin GPU (mucho más lento).
 - `API_HOST` / `API_PUERTO`: `127.0.0.1` solo deja conectarse desde este PC;
   `0.0.0.0` permite conectarse desde otros dispositivos de tu red (el móvil).
 
@@ -145,7 +173,9 @@ asistente/
 ├── ARQUITECTURA.md         # Diseño y hoja de ruta
 ├── core/                   # Núcleo del agente
 │   ├── agente.py           # Fachada: frase → Resultado (lo que usan los clientes)
-│   ├── router.py           # Frase → skill + parámetros (clasificador + slots)
+│   ├── router.py           # Frase → skill + parámetros (clasificador; si duda, LLM)
+│   ├── llm.py              # LLM local: llama-server, prompt, salida restringida y validada
+│   ├── llm_ejemplos.json   # Ejemplos que ve el LLM en cada consulta (editable)
 │   ├── planner.py          # Pasos previos necesarios según precondiciones/efectos
 │   ├── executor.py         # Confirmar → ejecutar → verificar → replanificar → registrar
 │   ├── estado.py           # Ventanas, monitores y hechos del mundo (antes window_manager.py)
@@ -153,6 +183,8 @@ asistente/
 │   ├── registro.py         # Catálogo de skills
 │   └── skills/             # base.py, crear_nota, abrir/cerrar_aplicacion, restaurar_ventana, plantilla
 ├── tests/                  # python -m pytest tests
+├── evaluacion/             # Frases de evaluación + python -m evaluacion.evaluar
+├── models/                 # llama.cpp + modelo GGUF (no se suben a git; ver models/README.md)
 ├── nlu/                    # Núcleo de comprensión del lenguaje (100% local, sin internet)
 │   ├── dataset.py          # Funciones para gestionar el dataset (agregar_frase, cargar_dataset...)
 │   ├── dataset.json        # Frases de entrenamiento por intención
@@ -178,11 +210,13 @@ asistente/
 ## Cómo funciona el sistema (resumen)
 
 1. Escribes una orden (`"quiero jugar a Destiny 2"`) en la consola o la envías a la API. __Más adelante será con voz__
-2. El **router** usa el clasificador de intención (PyTorch) para decidir la skill (`ejecutar_en_steam`) y extrae el parámetro (`juego = "Destiny 2"`). Si la confianza no llega a `UMBRAL_CONFIANZA` o la intención es `"ninguna"`, no hace nada.
+2. El **router** usa el clasificador de intención (PyTorch) para decidir la skill (`ejecutar_en_steam`) y extrae el parámetro (`juego = "Destiny 2"`). Si el clasificador duda (confianza baja, intención `"ninguna"`, palabras que no conoce...), pregunta al **LLM local** (Qwen3-8B), que solo puede responder una skill del catálogo con sus parámetros. Si tampoco hay skill, no hace nada.
 3. El **planificador** mira el estado real de Windows y calcula qué hace falta antes (abrir Steam o restaurarlo).
 4. El **executor** ejecuta cada paso, pide confirmación en los irreversibles, verifica que ha funcionado, replanifica una vez si algo falla y registra el episodio.
 
-De momento el modelo solo clasifica texto. El resto es código determinista (ver ARQUITECTURA.md para la evolución).
+Los modelos (clasificador y LLM) solo interpretan el texto. El resto es código determinista (ver ARQUITECTURA.md para la evolución).
+
+> **Para enseñar acciones nuevas y mejorar cómo entiende las órdenes, ver [GUIA.md](GUIA.md).**
 
 ---
 
@@ -412,17 +446,18 @@ Los errores más comunes de `build_templates.py`:
 
 ## Notas de diseño importantes
 
-- **El modelo solo clasifica, no ejecuta**: el modelo de PyTorch solo
-  decide a qué categoría pertenece la frase. Todo lo que ocurre después
-  (extraer slot, cargar plantilla, reproducir teclas) es código
-  determinista, sin IA.
-- **Añadir una acción nueva no requiere escribir código**: solo dataset
-  + grabación + `build_templates.py` + una entrada en
-  `recorder/catalogo.json`. El registro la convierte en skill y el
-  planificador ya puede usarla en sus planes.
+- **Los modelos solo interpretan, no ejecutan**: el clasificador y el LLM
+  deciden qué skill y con qué parámetros. Todo lo que ocurre después
+  (planificar, reproducir teclas, verificar) es código determinista.
+- **Añadir una acción nueva no requiere escribir código**: grabación +
+  `build_templates.py` + una entrada en `recorder/catalogo.json`. El
+  registro la convierte en skill, el planificador ya puede usarla y el
+  LLM la ve en su catálogo. Las frases en el dataset hacen que el
+  clasificador la reconozca sin pasar por el LLM (más rápido).
 - **Slots vs. sub-intenciones**: si el código que se ejecuta es el mismo
   y solo cambia un valor (qué app, qué canción), es un slot. Si el
   código es distinto (abrir vs. cerrar), son intenciones separadas.
-- **Sin modelos externos**: todo el sistema es 100% local. El único
+- **Sin servicios externos**: todo el sistema es 100% local (también el
+  LLM, que es un archivo en `models/` servido en 127.0.0.1). El único
   componente que puede usar internet es la acción concreta que lo
   necesite (ej. buscar en YouTube), nunca el núcleo NLU.

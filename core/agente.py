@@ -47,6 +47,12 @@ class Agente:
         self.ruta_episodios = ruta_episodios
         self._lock = threading.Lock()
 
+    def precargar(self) -> None:
+        """Carga el LLM en segundo plano para que la primera orden dudosa no espere."""
+        precargar = getattr(self.router, "precargar", None)
+        if precargar is not None:
+            threading.Thread(target=precargar, daemon=True, name="precarga-llm").start()
+
     # --- Por pasos (API) -----------------------------------------------------
 
     def interpretar(self, texto: str) -> Interpretacion:
@@ -56,7 +62,7 @@ class Agente:
             # Las frases rechazadas también se guardan: son candidatas a ampliar el dataset.
             registrar_episodio(
                 {"texto": texto, "skill": None, "intencion": interp.intencion,
-                 "confianza": interp.confianza, "ok": False, "rechazada": True,
+                 "confianza": interp.confianza, "origen": interp.origen, "ok": False, "rechazada": True,
                  "mensaje": interp.motivo_rechazo},
                 self.ruta_episodios,
             )
@@ -67,7 +73,7 @@ class Agente:
         with self._lock:
             return ejecutar_orden(
                 interp.skill, params, texto=interp.texto, confianza=interp.confianza,
-                confirmar=confirmar, registro=self.registro,
+                origen=interp.origen, confirmar=confirmar, registro=self.registro,
                 ruta_episodios=self.ruta_episodios,
             )
 

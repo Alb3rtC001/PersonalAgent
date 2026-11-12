@@ -40,6 +40,26 @@ ALIAS_APLICACIONES = {
     "notas": "Notas rápidas",
 }
 
+# ---------------------------------------------------------------------------
+# LLM local (fase 3, ver ARQUITECTURA.md §10 y models/README.md)
+# ---------------------------------------------------------------------------
+# Si el clasificador no está seguro, se pregunta al LLM. Con False (o si no
+# están los archivos de models/) el agente funciona solo con el clasificador.
+LLM_ACTIVO = True
+RUTA_MODELOS = Path(__file__).parent / "models"
+RUTA_LLAMA_SERVER = RUTA_MODELOS / "llama.cpp" / "llama-server.exe"
+# Elegido por evaluación (ARQUITECTURA.md §10): Qwen3-8B acierta más y responde el doble de rápido.
+# Alternativa más auditable (datos de entrenamiento abiertos):
+#   RUTA_MODELOS / "olmo-3-7b-instruct" / "Olmo-3-7B-Instruct-Q4_K_M.gguf"
+RUTA_MODELO_LLM = RUTA_MODELOS / "qwen3-8b" / "Qwen3-8B-Q4_K_M.gguf"
+# Formato de chat de los dos modelos. (La plantilla que trae el GGUF de OLMo 3
+# no funciona con llama-server; ChatML es el mismo formato.)
+LLM_PLANTILLA_CHAT = "chatml"
+LLM_PUERTO = 8766            # solo en 127.0.0.1
+LLM_CAPAS_GPU = 99           # 99 = todo el modelo en la GPU; 0 = solo CPU (mucho más lento)
+LLM_CONTEXTO = 4096
+LLM_ESPERA_ARRANQUE = 120    # segundos máximos para cargar el modelo
+
 # Datos generados por el agente (no se suben a git).
 RUTA_DATOS = Path(__file__).parent / "data"
 RUTA_NOTAS = RUTA_DATOS / "notas"                  # notas creadas por crear_nota

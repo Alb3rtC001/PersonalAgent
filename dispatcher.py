@@ -30,6 +30,7 @@ def main() -> None:
     logging.getLogger("personalagent").setLevel(logging.INFO)
 
     agente = Agente()
+    agente.precargar()
     print("Escribe una orden (o 'salir' para terminar). Ctrl+C cancela la orden en curso.")
     while True:
         try:

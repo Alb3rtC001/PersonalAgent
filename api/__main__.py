@@ -14,6 +14,7 @@ import uvicorn
 from api.servidor import crear_app
 from api.token import VARIABLE_ENTORNO, obtener_token
 from config import API_HOST, API_PUERTO, RUTA_TOKEN
+from core.agente import Agente
 
 
 def main() -> None:
@@ -26,7 +27,9 @@ def main() -> None:
     host_visible = "127.0.0.1" if API_HOST in ("0.0.0.0", "") else API_HOST
     print(f"PersonalAgent API en http://{host_visible}:{API_PUERTO}  (docs: /docs)", flush=True)
     print(f"Token (cabecera X-Token) guardado en: {origen}", flush=True)
-    uvicorn.run(crear_app(token=token), host=API_HOST, port=API_PUERTO, log_level="warning")
+    agente = Agente()
+    agente.precargar()
+    uvicorn.run(crear_app(agente=agente, token=token), host=API_HOST, port=API_PUERTO, log_level="warning")
 
 
 if __name__ == "__main__":

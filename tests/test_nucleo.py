@@ -176,3 +176,25 @@ def test_plantilla_con_paso_definitivo_requiere_confirmacion():
     skill = _registro_steam()["ejecutar_en_steam"]
     assert skill.requiere_confirmacion
     assert skill.parametros == {"juego": "juego"}
+
+
+def test_executor_confirma_si_lo_interpreto_el_llm(tmp_path):
+    cerrar = Falsa("cerrar", [True, True])
+    cerrar.confirmar_si_llm = True
+    reg = {"cerrar": cerrar}
+    # Interpretada por el clasificador: no pregunta.
+    r = ejecutar_orden("cerrar", {}, registro=reg, estado=_estado({}), origen="clasificador",
+                       confirmar=lambda d: False, ruta_episodios=tmp_path / "e.jsonl")
+    assert r.ok and cerrar.llamadas == 1
+    # Interpretada por el LLM: pregunta, y si no se confirma no se ejecuta.
+    r = ejecutar_orden("cerrar", {}, registro=reg, estado=_estado({}), origen="llm",
+                       confirmar=lambda d: False, ruta_episodios=tmp_path / "e.jsonl")
+    assert not r.ok and r.datos.get("cancelado") and cerrar.llamadas == 1
+
+
+def test_plantilla_confirmacion_desde_el_catalogo():
+    sin_definitivo = [{"tipo": "escribir", "valor": "{slot}"}]
+    meta = {**META_STEAM, "requiere_confirmacion": True, "confirmar_si_llm": True}
+    skill = SkillPlantilla("x", sin_definitivo, meta)
+    assert skill.requiere_confirmacion and skill.confirmar_si_llm
+    assert not SkillPlantilla("y", sin_definitivo, META_STEAM).requiere_confirmacion

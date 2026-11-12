@@ -12,7 +12,9 @@ precondiciones y efectos, se decide en recorder/catalogo.json:
         "descripcion_parametro": "Nombre del juego",
         "precondiciones": {"visible:steam": true},
         "efectos": {"lanzado:{juego}": true},
-        "coste": 2
+        "coste": 2,
+        "requiere_confirmacion": true,   // opcional: confirmar siempre
+        "confirmar_si_llm": false        // opcional: confirmar si lo interpretó el LLM
       }
     }
 
@@ -58,7 +60,11 @@ class SkillPlantilla(Skill):
         self.PRECONDICIONES = dict(meta.get("precondiciones", {}))
         self.EFECTOS = dict(meta.get("efectos", {}))
         self.coste = int(meta.get("coste", 2))
-        self.requiere_confirmacion = tiene_pasos_definitivos(plantilla)
+        # La confirmación se puede pedir desde el catálogo (sobrevive a reconstruir
+        # templates.json) o marcando un paso con "definitivo": true en la plantilla.
+        self.requiere_confirmacion = (tiene_pasos_definitivos(plantilla)
+                                      or bool(meta.get("requiere_confirmacion", False)))
+        self.confirmar_si_llm = bool(meta.get("confirmar_si_llm", False))
 
     def ejecutar(self, **params: Any) -> Resultado:
         slot = str(params.get(self._parametro, "")) if self._parametro else ""

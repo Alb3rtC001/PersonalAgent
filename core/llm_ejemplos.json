@@ -1,0 +1,21 @@
+[
+  {"frase": "abre discord", "skill": "abrir_aplicacion", "parametros": {"aplicacion": "discord"}},
+  {"frase": "ábreme la calculadora", "skill": "abrir_aplicacion", "parametros": {"aplicacion": "calculadora"}},
+  {"frase": "lanza blender", "skill": "abrir_aplicacion", "parametros": {"aplicacion": "blender"}},
+  {"frase": "cierra steam","skill": "cerrar_aplicacion", "parametros": {"aplicacion": "steam"}},
+  {"frase": "sal de telegram", "skill": "cerrar_aplicacion", "parametros": {"aplicacion": "telegram"}},
+  {"frase": "apunta que hay que sacar la basura", "skill": "crear_nota", "parametros": {"contenido": "hay que sacar la basura"}},
+  {"frase": "anótame que la cita es el jueves", "skill": "crear_nota", "parametros": {"contenido": "la cita es el jueves"}},
+  {"frase": "crea una nota", "skill": "crear_nota", "parametros": {}},
+  {"frase": "quiero jugar a destiny 2", "skill": "ejecutar_en_steam", "parametros": {"juego": "destiny 2"}},
+  {"frase": "quiero echar una partida al pubg", "skill": "ejecutar_en_steam", "parametros": {"juego": "pubg"}},
+  {"frase": "abre el juego stardew valley", "skill": "ejecutar_en_steam", "parametros": {"juego": "stardew valley"}},
+  {"frase": "enséñame telegram, que lo tengo minimizado", "skill": "restaurar_ventana", "parametros": {"aplicacion": "telegram"}},
+  {"frase": "pon delante la ventana de opera", "skill": "restaurar_ventana", "parametros": {"aplicacion": "opera"}},
+  {"frase": "maximiza la ventana de chrome", "skill": "ninguna", "parametros": {}},
+  {"frase": "minimiza spotify", "skill": "ninguna", "parametros": {}},
+  {"frase": "sube el brillo", "skill": "ninguna", "parametros": {}},
+  {"frase": "envía un correo a mi jefe", "skill": "ninguna", "parametros": {}},
+  {"frase": "reproduce la siguiente canción", "skill": "ninguna", "parametros": {}},
+  {"frase": "qué día es hoy", "skill": "ninguna", "parametros": {}}
+]

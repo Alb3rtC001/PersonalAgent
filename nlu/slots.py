@@ -31,7 +31,7 @@ DISPARADORES = {
         "hazme el favor de cerrar", "puedes cerrarme", "puedes cerrar",
         "quiero cerrar", "necesito cerrar", "me cierras", "cierrame",
         "cerrar", "cierra", "sal de", "salir de", "salte de", "quita",
-        "termina", "mata el proceso de", "mata", "por favor",
+        "termina el proceso de", "termina", "mata el proceso de", "mata", "por favor",
     ],
     "crear_nota": [
         "hazme el favor de anotar", "puedes apuntar esto por mi",

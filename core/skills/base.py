@@ -57,7 +57,10 @@ class Skill(ABC):
     descripcion: str = ""
     parametros: dict[str, str] = {}             # obligatorios: nombre -> descripción
     parametros_opcionales: dict[str, str] = {}  # opcionales:   nombre -> descripción
-    requiere_confirmacion: bool = False         # acciones irreversibles
+    requiere_confirmacion: bool = False         # acciones irreversibles: siempre se confirman
+    # Acciones con consecuencias (cerrar una app...): se confirman cuando la orden
+    # la ha interpretado el LLM y no el clasificador entrenado con tus frases.
+    confirmar_si_llm: bool = False
     coste: int = 1                              # el planificador prefiere planes baratos
     PRECONDICIONES: dict[str, bool] = {}
     EFECTOS: dict[str, bool] = {}
@@ -120,6 +123,7 @@ class Skill(ABC):
             "parametros": self.parametros,
             "parametros_opcionales": self.parametros_opcionales,
             "requiere_confirmacion": self.requiere_confirmacion,
+            "confirmar_si_llm": self.confirmar_si_llm,
             "precondiciones": self.PRECONDICIONES,
             "efectos": self.EFECTOS,
         }

@@ -77,7 +77,7 @@ pueda combinar, en vez de categorías fijas del clasificador.
  Comprensión     Router: frase → {intención | objetivo, parámetros, confianza}
                  v0: clasificador PyTorch actual + slots.py
                  v1: modelo propio pequeño para las órdenes conocidas + LLM abierto
-                     (llama.cpp + OLMo 3 7B, Apache 2.0) para lo que no entienda,
+                     (llama.cpp + Qwen3-8B, Apache 2.0) para lo que no entienda,
                      con salida JSON restringida y validada (ver §10)
                          │
  Planificación   objetivo → secuencia de skills
@@ -108,7 +108,8 @@ Cada skill hereda de `core.skills.base.Skill` y declara:
 | `descripcion`               | Texto que leerá el LLM para decidir si usarla.                    |
 | `parametros`                | Parámetros obligatorios con su descripción.                       |
 | `parametros_opcionales`     | Parámetros opcionales.                                            |
-| `requiere_confirmacion`     | Si es irreversible (enviar, borrar, comprar...).                  |
+| `requiere_confirmacion`     | Si es irreversible (enviar, borrar, comprar...): siempre se confirma. |
+| `confirmar_si_llm`          | Si tiene consecuencias (cerrar una app): se confirma cuando la orden la interpretó el LLM. |
 | `ejecutar(**params)`        | Hace la acción y devuelve un `Resultado`.                         |
 | `verificar(resultado)`      | Comprueba en el mundo real que el efecto existe.                  |
 | *(futuro)* `precondiciones` / `efectos` | Para que STRIPS valide planes.                        |
@@ -202,10 +203,16 @@ Cada fase termina con algo que funciona de punta a punta.
   `GET /skills`, `GET /episodios`, `GET /salud`. `cliente.py` es una CLI
   que pasa por la API (el mismo camino que usará el móvil); `dispatcher.py`
   sigue disponible sin servidor. Una sola orden se ejecuta a la vez.
-- **Fase 3 — Router híbrido.** Modelo propio pequeño para las órdenes
-  conocidas + LLM abierto (llama.cpp + OLMo 3 7B) para el resto. Frase →
-  JSON `{skill, parametros}` o plan de varias skills, restringido por
-  esquema y validado contra el catálogo. Decisión y motivos en §10.
+- **Fase 3 — Router híbrido (en curso).** Modelo propio pequeño para las
+  órdenes conocidas + LLM abierto (llama.cpp + Qwen3-8B) para el resto.
+  Frase → JSON `{skill, parametros}` o plan de varias skills, restringido
+  por esquema y validado contra el catálogo. Decisión y motivos en §10.
+  - ✅ `core/llm.py` + router híbrido (clasificador actual + LLM), conjunto
+    de evaluación y `python -m evaluacion.evaluar`; `origen` en los episodios.
+  - ✅ Comparado con Qwen3-8B: Qwen gana en acierto, velocidad y memoria y pasa a ser el modelo por defecto.
+  - ⏳ Sustituir el clasificador bag-of-words por un transformer pequeño
+    propio que también extraiga los parámetros.
+  - ⏳ Planes de varias skills en una sola orden ("abre Steam y lanza X").
 - **Fase 4 — Memoria y contexto.** Contexto de sesión, verificador de éxito
   general, recuperación de episodios parecidos como ejemplos.
 - **Fase 5 — Acciones robustas.** UI Automation; grabador v2 que guarda el
@@ -288,7 +295,7 @@ frase ──► modelo propio pequeño (nlu/, entrenado aquí con tus frases)
             │  confianza ≥ umbral y sin verbos desconocidos ──► {skill, params}
             │  si no
             ▼
-          LLM abierto (llama.cpp + OLMo 3 7B)
+          LLM abierto (llama.cpp + Qwen3-8B)
             prompt = catálogo de skills (Skill.describir()) + frase
             salida RESTRINGIDA por un JSON Schema generado del catálogo:
             solo puede responder una skill que existe, con sus parámetros
@@ -324,7 +331,34 @@ Los dos son MIT y funcionan sin internet. Se elige **llama.cpp** porque:
 Ollama es una alternativa válida (también MIT), pero añade un servicio en
 segundo plano, su propio registro de modelos online y auto-actualización.
 
-### Modelo: OLMo 3 7B Instruct (Ai2, Apache 2.0)
+### Modelo elegido: Qwen3-8B (Apache 2.0), tras compararlo con OLMo 3
+
+La primera elección fue OLMo 3 7B por ser el más auditable (motivos
+abajo). Tras medir los dos con las mismas frases, el agente usa
+**Qwen3-8B** (`Qwen/Qwen3-8B-GGUF`, Q4_K_M), porque gana en acierto, en
+velocidad y en memoria:
+
+| Solo el LLM, Q4_K_M, RTX 3060 Ti    | OLMo 3 7B | Qwen3-8B |
+| ----------------------------------- | :-------: | :------: |
+| Conjunto de ajuste (52 frases)      | 96 %      | **100 %** |
+| Conjunto de control (30 frases que no se usaron para ajustar nada) | 97 % | **100 %** |
+| Tiempo por orden (mediana)          | ~0,87 s   | **~0,43 s** |
+| Memoria de GPU del modelo           | ~6,3 GB   | **~5,4 GB** |
+| Carga del modelo                    | 3,6 s     | 4,1 s    |
+
+(Porcentajes de skill + parámetros correctos. El prompt se ajustó mirando
+los fallos de OLMo, así que la comparación no favorece a Qwen.)
+
+Lo que se cede: Qwen solo publica los pesos, no los datos de
+entrenamiento, así que su sesgo no se puede auditar como el de OLMo. Las
+condiciones que pediste siguen intactas: licencia Apache 2.0 (sin
+registro, sin condiciones de uso, redistribuible), archivo local y ningún
+dato sale del PC. Y en este uso el sesgo apenas influye: solo elige una
+skill del catálogo con salida restringida y validada. OLMo 3 sigue en
+`models/` como alternativa: cambiarlo es cambiar `RUTA_MODELO_LLM` en
+`config.py`.
+
+### Primera opción: OLMo 3 7B Instruct (Ai2, Apache 2.0)
 
 - **Licencia Apache 2.0:** uso, modificación y redistribución libres, sin
   registro ni límites de uso. Las directrices de "uso responsable" de Ai2
@@ -335,11 +369,53 @@ segundo plano, su propio registro de modelos online y auto-actualización.
   saber qué sesgos puede tener un modelo en vez de suponerlo.
 - **Cabe en la GPU:** cuantizado a Q4_K_M ocupa ~4,5 GB (RTX 3060 Ti, 8 GB).
 - **Plan B: Qwen3-8B (Apache 2.0),** más fuerte en español y en elegir
-  herramientas, pero solo publica pesos. La elección final se hace con
-  datos: un conjunto de evaluación propio (frases → skill y parámetros
-  esperados) y se queda el que acierte más. El modelo es un parámetro de
-  `config.py`: cambiarlo es cambiar un archivo.
+  herramientas, pero solo publica pesos. La elección final se hizo con
+  datos (tabla de arriba).
 - **Descartados:** Llama (licencia propia con condiciones de uso y
   atribución obligatoria) y Gemma (términos de uso propios).
 - Se usa el archivo GGUF original o una conversión comprobada, y se guarda
   junto a su licencia en `models/` (no se sube a git).
+
+### Cómo decide el router cuándo preguntar al LLM
+
+El clasificador responde solo si está seguro **y** no hay señales de que
+haya acertado "de casualidad". Se pregunta al LLM si:
+
+- la intención es "ninguna", la confianza está por debajo del umbral o la
+  intención no tiene skill;
+- no se reconoció ninguna frase disparadora (el "valor" sería la frase entera);
+- hay palabras desconocidas fuera del valor (un verbo nuevo: "reinicia steam");
+- el valor tiene varias palabras y alguna es desconocida ("me apetece cs2").
+
+Salvaguardas sobre la respuesta del LLM:
+
+- Salida restringida por JSON Schema: solo skills del catálogo y sus parámetros.
+- Cada valor se "ancla" al texto del usuario (si el modelo escribe "bloque
+  de notas" y el usuario dijo "bloc de notas", se usa lo del usuario).
+- Los parámetros opcionales que el usuario no dijo (un título inventado) se quitan.
+- Un nombre corto que no aparece en la frase es una invención ("cuánto es
+  15 por 3" → abrir "calculetta"): se rechaza la orden.
+- Si el clasificador y el LLM coinciden en la skill pero el LLM reformuló
+  el valor, se usa el trozo literal que extrajo el clasificador.
+- Si el LLM no está disponible, se usa lo que diga el clasificador.
+- Las skills con consecuencias declaran `confirmar_si_llm = True`
+  (`cerrar_aplicacion`): si la orden la interpretó el LLM, se pide
+  confirmación antes de ejecutarla. Motivo: en una prueba real, "minimiza
+  discord" se interpretó una vez como cerrar Discord. Las que interpreta el
+  clasificador (entrenado con tus frases) no preguntan.
+
+### Resultados (`python -m evaluacion.evaluar`)
+
+Con Qwen3-8B. `ordenes.json` (52 frases, usado para ajustar) y
+`ordenes_control.json` (30 frases que no se usaron para ajustar nada):
+
+| Vía               | Ajuste: skill + parámetros | Control: skill + parámetros | Tiempo por frase |
+| ----------------- | :------------------------: | :-------------------------: | ---------------- |
+| Solo clasificador | 58 %                       | —                           | < 2 ms           |
+| Solo LLM          | 100 %                      | 100 %                       | ~0,43 s          |
+| Híbrido           | 98 %                       | 100 %                       | 0 ms (conocidas) – ~0,4–0,9 s (nuevas) |
+
+El fallo del híbrido es "minimiza discord" → `cerrar_aplicacion`: es un caso
+límite en el que el modelo no siempre responde igual (en la vía "solo LLM"
+lo rechazó bien). Son pocas frases: para medir de verdad hay que ir
+añadiendo órdenes reales (de `data/episodios.jsonl`) al conjunto de control.

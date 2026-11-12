@@ -1,0 +1,37 @@
+[
+  {"frase": "quiero abrir el paint", "skill": "abrir_aplicacion", "parametros": {"aplicacion": "paint"}},
+  {"frase": "arráncame el vlc", "skill": "abrir_aplicacion", "parametros": {"aplicacion": "vlc"}},
+  {"frase": "necesito excel", "skill": "abrir_aplicacion", "parametros": {"aplicacion": "excel"}},
+  {"frase": "abre la configuración", "skill": "abrir_aplicacion", "parametros": {"aplicacion": "configuración"}},
+  {"frase": "ábreme el obs, que voy a grabar", "skill": "abrir_aplicacion", "parametros": {"aplicacion": "obs"}},
+
+  {"frase": "cierra el paint", "skill": "cerrar_aplicacion", "parametros": {"aplicacion": "paint"}},
+  {"frase": "fuera excel", "skill": "cerrar_aplicacion", "parametros": {"aplicacion": "excel"}},
+  {"frase": "cierra la ventana de vlc", "skill": "cerrar_aplicacion", "parametros": {"aplicacion": "vlc"}},
+  {"frase": "cierra el administrador de tareas", "skill": "cerrar_aplicacion", "parametros": {"aplicacion": "administrador de tareas"}},
+  {"frase": "he terminado con telegram, ciérralo", "skill": "cerrar_aplicacion", "parametros": {"aplicacion": "telegram"}},
+
+  {"frase": "apunta: comprar regalo para mamá", "skill": "crear_nota", "parametros": {"contenido": "comprar regalo para mamá"}},
+  {"frase": "hazme una nota que diga revisar las facturas", "skill": "crear_nota", "parametros": {"contenido": "revisar las facturas"}},
+  {"frase": "anota que el viernes cenamos fuera", "skill": "crear_nota", "parametros": {"contenido": ["el viernes cenamos fuera", "que el viernes cenamos fuera"]}},
+  {"frase": "necesito apuntar algo", "skill": "crear_nota", "parametros": {}},
+  {"frase": "guarda en una nota el número de pedido 48213", "skill": "crear_nota", "parametros": {"contenido": ["el número de pedido 48213", "número de pedido 48213"]}},
+
+  {"frase": "quiero jugar al hades", "skill": "ejecutar_en_steam", "parametros": {"juego": "hades"}},
+  {"frase": "lanza baldur's gate 3 desde steam", "skill": "ejecutar_en_steam", "parametros": {"juego": "baldur's gate 3"}},
+  {"frase": "échame una partida al terraria", "skill": "ejecutar_en_steam", "parametros": {"juego": "terraria"}},
+  {"frase": "pon el juego dead cells", "skill": "ejecutar_en_steam", "parametros": {"juego": "dead cells"}},
+
+  {"frase": "vuelve a mostrarme spotify", "skill": "restaurar_ventana", "parametros": {"aplicacion": "spotify"}},
+  {"frase": "sácame la ventana de discord que está escondida", "skill": "restaurar_ventana", "parametros": {"aplicacion": "discord"}},
+
+  {"frase": "baja el volumen", "skill": "ninguna", "parametros": {}},
+  {"frase": "haz una captura de pantalla", "skill": "ninguna", "parametros": {}},
+  {"frase": "qué día es mañana", "skill": "ninguna", "parametros": {}},
+  {"frase": "apaga la luz del salón", "skill": "ninguna", "parametros": {}},
+  {"frase": "escribe un correo a ana", "skill": "ninguna", "parametros": {}},
+  {"frase": "reinicia el ordenador", "skill": "ninguna", "parametros": {}},
+  {"frase": "minimiza todas las ventanas", "skill": "ninguna", "parametros": {}},
+  {"frase": "busca vuelos a roma", "skill": "ninguna", "parametros": {}},
+  {"frase": "traduce hola al inglés", "skill": "ninguna", "parametros": {}}
+]

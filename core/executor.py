@@ -47,12 +47,13 @@ def _ejecutar_plan(
     registro: dict[str, Skill],
     confirmar: Confirmar | None,
     historial: list[dict[str, Any]],
+    origen: str | None = None,
 ) -> tuple[Resultado, Paso | None]:
     """Ejecuta los pasos en orden. Devuelve el último resultado y el paso que falló (si alguno)."""
     resultado = Resultado(False, "Plan vacío.")
     for paso in plan:
         skill = registro[paso.skill]
-        if skill.requiere_confirmacion:
+        if skill.requiere_confirmacion or (origen == "llm" and skill.confirmar_si_llm):
             descripcion = skill.describir_paso(paso.params)
             if confirmar is None or not confirmar(descripcion):
                 resultado = Resultado(False, f"Necesita confirmación: {descripcion}",
@@ -75,6 +76,7 @@ def ejecutar_orden(
     *,
     texto: str = "",
     confianza: float | None = None,
+    origen: str | None = None,
     confirmar: Confirmar | None = None,
     registro: dict[str, Skill] | None = None,
     estado: EstadoMundo | None = None,
@@ -102,7 +104,7 @@ def ejecutar_orden(
         )
     else:
         planes.append([registro[p.skill].describir_paso(p.params) for p in plan])
-        resultado, fallido = _ejecutar_plan(plan, registro, confirmar, historial)
+        resultado, fallido = _ejecutar_plan(plan, registro, confirmar, historial, origen)
 
         if fallido is not None:
             # El mundo ha cambiado (o no era como creíamos): se vuelve a mirar y se replanifica.
@@ -112,7 +114,7 @@ def ejecutar_orden(
             if nuevo and nuevo[0] != fallido:
                 replanificado = True
                 planes.append([registro[p.skill].describir_paso(p.params) for p in nuevo])
-                resultado, _ = _ejecutar_plan(nuevo, registro, confirmar, historial)
+                resultado, _ = _ejecutar_plan(nuevo, registro, confirmar, historial, origen)
 
     registrar_episodio(
         {
@@ -120,6 +122,7 @@ def ejecutar_orden(
             "skill": nombre,
             "parametros": params,
             "confianza": confianza,
+            "origen": origen,   # quién interpretó la frase: "clasificador" o "llm"
             "planes": planes,
             "pasos": historial,
             "replanificado": replanificado,
