@@ -21,7 +21,7 @@ from pathlib import Path
 UMBRAL_CONFIANZA = 0.72
 
 # Segundos que abrir_aplicacion espera a que aparezca la ventana de la app.
-ESPERA_MAX_APERTURA = 15
+ESPERA_MAX_APERTURA = 30
 
 # Nombres alternativos para abrir_aplicacion: lo que dices -> nombre en el menú Inicio.
 # Las claves van en minúsculas y sin tildes.
@@ -36,6 +36,18 @@ ALIAS_APLICACIONES = {
 RUTA_DATOS = Path(__file__).parent / "data"
 RUTA_NOTAS = RUTA_DATOS / "notas"                  # notas creadas por crear_nota
 RUTA_EPISODIOS = RUTA_DATOS / "episodios.jsonl"    # historial de órdenes ejecutadas
+
+# API HTTP local (python -m api)
+# 127.0.0.1 = solo este PC. Para conectar el móvil por la red de casa: "0.0.0.0".
+API_HOST = "127.0.0.1"
+API_PUERTO = 8765
+# Token que deben enviar los clientes en la cabecera X-Token. Se genera
+# solo la primera vez; también se puede fijar con la variable de entorno
+# PERSONALAGENT_TOKEN.
+RUTA_TOKEN = RUTA_DATOS / "api_token.txt"
+# Segundos que una orden puede esperar una respuesta del usuario
+# (un dato que falta o una confirmación) antes de descartarse.
+CADUCIDAD_PENDIENTES = 300
 
 # ---------------------------------------------------------------------------
 # Detección automática de monitores (se ejecuta solo una vez al importar)

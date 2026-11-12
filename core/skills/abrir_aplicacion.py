@@ -7,21 +7,35 @@ la Microsoft Store (Calculadora, Notas rápidas...) y accesos directos
 de juegos. Cada entrada tiene un AppID que se lanza con
     explorer.exe shell:AppsFolder\\<AppID>
 
+Si la app ya está abierta (aunque esté oculta en la bandeja del sistema)
+no se relanza: se trae su ventana al frente.
+
 Verificación: espera a que aparezca una ventana cuyo título o proceso
-contenga el nombre de la app, o una ventana nueva que no existía antes.
+contenga el nombre de la app (sacándola de la bandeja si arranca ahí), o
+una ventana nueva que no existía antes.
 """
 
 from __future__ import annotations
 
 import difflib
 import json
+import logging
 import subprocess
 import time
 from dataclasses import dataclass
 
 from config import ALIAS_APLICACIONES, ESPERA_MAX_APERTURA
-from core.estado import buscar_ventana, handles_ventanas, normalizar
+from core.estado import (
+    buscar_ventana,
+    es_visible,
+    handles_ventanas,
+    normalizar,
+    traer_al_frente,
+    ventana_visible,
+)
 from core.skills.base import Resultado, Skill
+
+log = logging.getLogger("personalagent")
 
 # Puntuación mínima para aceptar una app. Los parecidos "difusos" puntúan
 # ratio * 0.75, así que 0.45 equivale a exigir un ratio de difflib >= 0.6.
@@ -77,6 +91,15 @@ def buscar_app(consulta: str, apps: list[AppInstalada]) -> list[tuple[float, App
     return candidatas
 
 
+def _ventanas_de(nombres: list[str]) -> list[dict]:
+    """Ventanas (visibles u ocultas en la bandeja) que coinciden con alguno de los nombres."""
+    encontradas: dict[int, dict] = {}
+    for nombre in nombres:
+        for v in buscar_ventana(nombre, incluir_ocultas=True):
+            encontradas[v["hwnd"]] = v
+    return list(encontradas.values())
+
+
 class AbrirAplicacion(Skill):
     nombre = "abrir_aplicacion"
     descripcion = "Abre una aplicación instalada (o la trae al frente si ya está abierta)."
@@ -102,25 +125,50 @@ class AbrirAplicacion(Skill):
             return Resultado(False, f"No encuentro ninguna aplicación llamada '{aplicacion}'.")
 
         app = candidatas[0][1]
-        antes = handles_ventanas()
+        nombres = sorted({app.nombre, aplicacion})
+        datos = {"aplicacion": app.nombre, "app_id": app.app_id, "nombres": nombres}
+
+        # ¿Ya está abierta? (aunque sea oculta en la bandeja del sistema, como
+        # Discord al cerrarlo con la X). Relanzarla no siempre la muestra:
+        # se trae al frente su ventana directamente.
+        existentes = _ventanas_de(nombres)
+        if existentes:
+            ventana = sorted(existentes, key=lambda v: not es_visible(v))[0]
+            log.info("'%s' ya estaba abierta; la traigo al frente.", app.nombre)
+            traer_al_frente(ventana["hwnd"])
+            return Resultado(True, f"'{app.nombre}' ya estaba abierta; la he traído al frente.",
+                             datos={**datos, "hwnd": ventana["hwnd"], "ya_abierta": True})
+
+        log.info("Abriendo '%s'…", app.nombre)
+        datos["ventanas_antes"] = sorted(handles_ventanas())
         subprocess.Popen(["explorer.exe", f"shell:AppsFolder\\{app.app_id}"])
-        return Resultado(
-            True,
-            f"Abriendo '{app.nombre}'.",
-            datos={"aplicacion": app.nombre, "app_id": app.app_id,
-                   "pedida": aplicacion, "ventanas_antes": sorted(antes)},
-        )
+        return Resultado(True, f"'{app.nombre}' abierta.", datos=datos)
 
     def verificar(self, resultado: Resultado) -> bool:
         if not resultado.ok:
             return False
-        nombres = {resultado.datos["aplicacion"], resultado.datos["pedida"]}
-        antes = set(resultado.datos["ventanas_antes"])
+        datos = resultado.datos
+        if datos.get("ya_abierta"):
+            return ventana_visible(datos["hwnd"])
+
+        antes = set(datos["ventanas_antes"])
+        log.info("Esperando a que aparezca la ventana de '%s' (máximo %d s)…",
+                 datos["aplicacion"], self.espera_max)
         limite = time.monotonic() + self.espera_max
         while time.monotonic() < limite:
-            if any(buscar_ventana(n) for n in nombres):
+            ventanas = _ventanas_de(datos["nombres"])
+            if any(es_visible(v) for v in ventanas):
                 return True
+            # Algunas apps arrancan directamente escondidas en la bandeja.
+            for v in ventanas:
+                if traer_al_frente(v["hwnd"]):
+                    return True
+            # Apps cuya ventana no lleva su nombre (p. ej. el Explorador muestra la carpeta).
             if handles_ventanas() - antes:
                 return True
             time.sleep(0.5)
+
+        datos["motivo_verificacion"] = (
+            f"Se lanzó '{datos['aplicacion']}' pero su ventana no apareció en {self.espera_max} s."
+        )
         return False

@@ -33,9 +33,10 @@ def _ejecutar_paso(skill: Skill, params: dict[str, Any]) -> Resultado:
         return Resultado(False, f"Error ejecutando '{skill.nombre}': {e}")
 
     if resultado.ok and not skill.verificar(resultado):
+        motivo = resultado.datos.get("motivo_verificacion")
         return Resultado(
             False,
-            f"'{skill.nombre}' se ejecutó pero no se pudo verificar el resultado.",
+            motivo or f"'{skill.nombre}' se ejecutó pero no se pudo verificar el resultado.",
             resultado.datos,
         )
     return resultado
@@ -54,7 +55,8 @@ def _ejecutar_plan(
         if skill.requiere_confirmacion:
             descripcion = skill.describir_paso(paso.params)
             if confirmar is None or not confirmar(descripcion):
-                resultado = Resultado(False, f"Cancelado: {descripcion}", datos={"cancelado": True})
+                resultado = Resultado(False, f"Necesita confirmación: {descripcion}",
+                                      datos={"cancelado": True, "accion": descripcion})
                 historial.append({"skill": paso.skill, "params": paso.params,
                                   "ok": False, "mensaje": resultado.mensaje})
                 return resultado, None

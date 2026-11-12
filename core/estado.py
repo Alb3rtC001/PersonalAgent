@@ -3,32 +3,34 @@ Estado del mundo (antes window_manager.py).
 
 Dos niveles:
 - Funciones de consulta de Windows: ventanas abiertas, ventana activa,
-  monitores, contexto de un clic (las usan el grabador y el reproductor).
+  monitores, contexto de un clic (las usan el grabador y el reproductor),
+  y traer_al_frente() para mostrar una ventana.
 - Hechos para el planificador: cadenas "predicado:argumento" que se
   pueden comprobar en el sistema real, y EstadoMundo, que permite
   simular efectos sobre el estado real sin tocarlo.
 
 Hechos que se saben consultar:
-    abierta:<app>   hay alguna ventana cuyo título o proceso contiene <app>
-    visible:<app>   ídem y al menos una de ellas no está minimizada
+    abierta:<app>   hay alguna ventana (aunque esté oculta en la bandeja del
+                    sistema) cuyo título o proceso contiene <app>
+    visible:<app>   ídem y al menos una se ve: ni minimizada ni oculta
 Cualquier otro hecho se considera False hasta que una skill lo produzca.
+
+Las ventanas se enumeran directamente con la API de Windows (ctypes):
+así se ven también las ventanas ocultas de apps que "se cierran" a la
+bandeja del sistema (Discord, Steam, Spotify...), que pygetwindow no veía.
 
 Diagnóstico: python -m core.estado
 
-Requiere: python -m pip install pygetwindow screeninfo psutil
+Requiere: python -m pip install screeninfo psutil
 """
 
 from __future__ import annotations
 
+import ctypes
+import ctypes.wintypes as wt
 import time
 import unicodedata
 from typing import Callable
-
-try:
-    import pygetwindow as gw
-    PYGETWINDOW_DISPONIBLE = True
-except ImportError:
-    PYGETWINDOW_DISPONIBLE = False
 
 try:
     from screeninfo import get_monitors
@@ -41,6 +43,20 @@ try:
     PSUTIL_DISPONIBLE = True
 except ImportError:
     PSUTIL_DISPONIBLE = False
+
+try:
+    _user32 = ctypes.windll.user32
+    WINDOWS_DISPONIBLE = True
+except AttributeError:  # no es Windows
+    _user32 = None
+    WINDOWS_DISPONIBLE = False
+
+GWL_EXSTYLE = -20
+WS_EX_TOOLWINDOW = 0x00000080
+SW_SHOW = 5
+SW_RESTORE = 9
+VK_MENU = 0x12
+KEYEVENTF_KEYUP = 0x2
 
 _cache_procesos: dict[int, str] = {}
 
@@ -83,7 +99,7 @@ def _detectar_monitor(x: int, y: int, monitores: list[dict]) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Ventanas
+# Ventanas (API de Windows)
 # ---------------------------------------------------------------------------
 
 def _obtener_proceso_por_pid(pid: int) -> str | None:
@@ -99,91 +115,150 @@ def _obtener_proceso_por_pid(pid: int) -> str | None:
         return None
 
 
-def _obtener_pid_ventana(hwnd: int) -> int:
-    try:
-        import ctypes
-        pid = ctypes.c_ulong()
-        ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-        return pid.value
-    except Exception:
-        return 0
+def _titulo(hwnd: int) -> str:
+    largo = _user32.GetWindowTextLengthW(hwnd)
+    if largo <= 0:
+        return ""
+    buf = ctypes.create_unicode_buffer(largo + 1)
+    _user32.GetWindowTextW(hwnd, buf, largo + 1)
+    return buf.value.strip()
 
 
-def _info_ventana(w, monitores: list[dict]) -> dict:
-    centro_x = w.left + w.width // 2
-    centro_y = w.top + w.height // 2
-    hwnd = getattr(w, "_hWnd", 0)
-    pid = _obtener_pid_ventana(hwnd) if hwnd else 0
+def _pid(hwnd: int) -> int:
+    pid = wt.DWORD()
+    _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    return pid.value
+
+
+def _info_ventana(hwnd: int, monitores: list[dict]) -> dict:
+    r = wt.RECT()
+    _user32.GetWindowRect(hwnd, ctypes.byref(r))
+    ancho, alto = r.right - r.left, r.bottom - r.top
+    pid = _pid(hwnd)
     return {
-        "titulo": (w.title or "").strip(),
+        "titulo": _titulo(hwnd),
         "proceso": _obtener_proceso_por_pid(pid),
         "pid": pid or None,
-        "hwnd": hwnd or None,
-        "monitor": _detectar_monitor(centro_x, centro_y, monitores),
-        "maximizada": w.isMaximized,
-        "minimizada": w.isMinimized,
-        "rect": {"left": w.left, "top": w.top, "right": w.right, "bottom": w.bottom},
-        "width": w.width,
-        "height": w.height,
+        "hwnd": hwnd,
+        "monitor": _detectar_monitor(r.left + ancho // 2, r.top + alto // 2, monitores),
+        "maximizada": bool(_user32.IsZoomed(hwnd)),
+        "minimizada": bool(_user32.IsIconic(hwnd)),
+        "oculta": not _user32.IsWindowVisible(hwnd),
+        "rect": {"left": r.left, "top": r.top, "right": r.right, "bottom": r.bottom},
+        "width": ancho,
+        "height": alto,
     }
 
 
-def listar_ventanas_abiertas(monitores: list[dict] | None = None) -> list[dict]:
-    """Todas las ventanas con título, en primer o segundo plano, en todos los monitores."""
-    if not PYGETWINDOW_DISPONIBLE:
+def _es_ventana_principal_oculta(hwnd: int) -> bool:
+    """
+    Una ventana oculta cuenta solo si parece la ventana principal de una
+    app escondida en la bandeja del sistema: las apps que "se cierran a la
+    bandeja" (Discord, Steam...) minimizan su ventana y luego la ocultan.
+    Así se descartan las decenas de ventanas internas ocultas que tiene
+    cualquier programa ("Default IME", "NvSvc", "Hidden Window"...).
+    """
+    if _user32.GetWindowLongW(hwnd, GWL_EXSTYLE) & WS_EX_TOOLWINDOW:
+        return False
+    return bool(_user32.IsIconic(hwnd))
+
+
+def _handles(incluir_ocultas: bool) -> list[int]:
+    if not WINDOWS_DISPONIBLE:
         return []
+    handles: list[int] = []
+
+    @ctypes.WINFUNCTYPE(wt.BOOL, wt.HWND, wt.LPARAM)
+    def recoger(hwnd, _):
+        if _titulo(hwnd):
+            if _user32.IsWindowVisible(hwnd):
+                handles.append(hwnd)
+            elif incluir_ocultas and _es_ventana_principal_oculta(hwnd):
+                handles.append(hwnd)
+        return True
+
+    _user32.EnumWindows(recoger, 0)
+    return handles
+
+
+def listar_ventanas_abiertas(monitores: list[dict] | None = None,
+                             incluir_ocultas: bool = False) -> list[dict]:
+    """
+    Ventanas con título en todos los monitores. Por defecto solo las
+    visibles (incluidas las minimizadas en la barra de tareas); con
+    incluir_ocultas=True también las escondidas en la bandeja del sistema.
+    """
     if monitores is None:
         monitores = obtener_monitores()
-
     ventanas = []
-    for w in gw.getAllWindows():
-        if not (w.title or "").strip() or w.width <= 0 or w.height <= 0:
+    for hwnd in _handles(incluir_ocultas):
+        info = _info_ventana(hwnd, monitores)
+        if info["width"] <= 0 or info["height"] <= 0:
             continue
-        ventanas.append(_info_ventana(w, monitores))
+        ventanas.append(info)
     ventanas.sort(key=lambda v: (v["monitor"], v["titulo"].lower()))
     return ventanas
 
 
 def handles_ventanas() -> set[int]:
-    """Identificadores de todas las ventanas con título (para detectar ventanas nuevas)."""
-    if not PYGETWINDOW_DISPONIBLE:
-        return set()
-    return {w._hWnd for w in gw.getAllWindows() if (w.title or "").strip()}
+    """Identificadores de las ventanas visibles con título (para detectar ventanas nuevas)."""
+    return set(_handles(incluir_ocultas=False))
 
 
-def buscar_ventana(termino: str, monitores: list[dict] | None = None) -> list[dict]:
+def buscar_ventana(termino: str, monitores: list[dict] | None = None,
+                   incluir_ocultas: bool = False) -> list[dict]:
     """Ventanas cuyo título o proceso contiene el término (sin distinguir mayúsculas ni tildes)."""
     termino = normalizar(termino)
     if not termino:
         return []
     return [
-        v for v in listar_ventanas_abiertas(monitores)
+        v for v in listar_ventanas_abiertas(monitores, incluir_ocultas)
         if termino in normalizar(v["titulo"])
         or (v["proceso"] and termino in normalizar(v["proceso"]))
     ]
 
 
 def ventana_abierta(termino: str) -> bool:
-    return len(buscar_ventana(termino)) > 0
+    return len(buscar_ventana(termino, incluir_ocultas=True)) > 0
 
 
-def obtener_ventana_gw(hwnd: int):
-    """Objeto pygetwindow para una ventana concreta (para restaurarla, activarla...)."""
-    if not PYGETWINDOW_DISPONIBLE or not hwnd:
-        return None
-    return gw.Win32Window(hwnd)
+def es_visible(ventana: dict) -> bool:
+    return not ventana["minimizada"] and not ventana["oculta"]
+
+
+def ventana_visible(hwnd: int) -> bool:
+    return bool(WINDOWS_DISPONIBLE and _user32.IsWindowVisible(hwnd) and not _user32.IsIconic(hwnd))
+
+
+def traer_al_frente(hwnd: int) -> bool:
+    """
+    Muestra la ventana (aunque esté minimizada u oculta en la bandeja) y le
+    da el foco. Devuelve True si queda visible.
+    """
+    if not WINDOWS_DISPONIBLE:
+        return False
+    if _user32.IsIconic(hwnd) or not _user32.IsWindowVisible(hwnd):
+        _user32.ShowWindow(hwnd, SW_RESTORE)
+    _user32.ShowWindow(hwnd, SW_SHOW)
+    # Windows solo deja cambiar el foco si el proceso "acaba de recibir una
+    # tecla": pulsar y soltar ALT es el truco habitual para que lo permita.
+    _user32.keybd_event(VK_MENU, 0, 0, 0)
+    _user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0)
+    _user32.SetForegroundWindow(hwnd)
+    time.sleep(0.3)
+    return ventana_visible(hwnd)
 
 
 def obtener_ventana_activa(monitores: list[dict] | None = None) -> dict:
     """Información sobre la ventana que tiene el foco ahora mismo."""
-    if not PYGETWINDOW_DISPONIBLE:
-        return {"error": "pygetwindow no instalado"}
-    ventana = gw.getActiveWindow()
-    if ventana is None:
+    if not WINDOWS_DISPONIBLE:
+        return {"error": "Solo disponible en Windows"}
+    hwnd = _user32.GetForegroundWindow()
+    if not hwnd:
         return {"error": "No se pudo obtener la ventana activa"}
     if monitores is None:
         monitores = obtener_monitores()
-    info = _info_ventana(ventana, monitores)
+    info = _info_ventana(hwnd, monitores)
     info["timestamp"] = time.time()
     return info
 
@@ -219,9 +294,9 @@ def consultar_hecho(hecho: str) -> bool:
     """Comprueba un hecho "predicado:argumento" en el sistema real."""
     predicado, _, argumento = hecho.partition(":")
     if predicado == "abierta":
-        return bool(buscar_ventana(argumento))
+        return bool(buscar_ventana(argumento, incluir_ocultas=True))
     if predicado == "visible":
-        return any(not v["minimizada"] for v in buscar_ventana(argumento))
+        return any(es_visible(v) for v in buscar_ventana(argumento, incluir_ocultas=True))
     return False
 
 
@@ -281,9 +356,12 @@ if __name__ == "__main__":
         if k != "timestamp":
             print(f"  {k}: {v}")
 
-    print("\n=== Todas las ventanas abiertas ===")
-    for v in listar_ventanas_abiertas(monitores):
+    print("\n=== Todas las ventanas (incluidas las ocultas en la bandeja) ===")
+    for v in listar_ventanas_abiertas(monitores, incluir_ocultas=True):
         proceso = v["proceso"] or "desconocido"
-        estado = "MAX" if v["maximizada"] else ("min" if v["minimizada"] else "normal")
+        if v["oculta"]:
+            estado = "OCULTA"
+        else:
+            estado = "MAX" if v["maximizada"] else ("min" if v["minimizada"] else "normal")
         print(f"  [Monitor {v['monitor']}] {v['titulo']!r} ({proceso}) "
               f"{v['width']}x{v['height']} [{estado}]")

@@ -2,8 +2,7 @@
 numpy==2.5.1
 torch==2.12.1
 
-# Estado de Windows (core/estado.py)
-pygetwindow==0.2.0
+# Estado de Windows (core/estado.py; las ventanas se leen con la API de Windows vía ctypes)
 screeninfo==0.8.1
 psutil==7.2.2
 
@@ -12,5 +11,10 @@ pyautogui==0.9.54
 pynput==1.8.2
 pyperclip==1.11.0
 
-# Desarrollo
-pytest
+# API HTTP local (api/)
+fastapi==0.162.5
+uvicorn==0.54.0
+
+# Desarrollo y tests
+pytest==9.2.0
+httpx==0.28.1

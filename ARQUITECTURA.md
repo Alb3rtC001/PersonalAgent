@@ -135,7 +135,8 @@ core/                    # Núcleo nuevo
   estado.py              # Ventanas, monitores, hechos (hecho, antes window_manager.py)
   memoria.py             # Episodios                 (hecho)
   sesion.py              # Contexto de sesión (fase 4)
-api/                     # FastAPI local (fase 2)
+api/                     # FastAPI local: servidor.py, token.py, __main__.py (hecho)
+cliente.py               # CLI que pasa por la API (hecho)
 nlu/                     # Se mantiene: clasificador + slots
 recorder/                # Se mantiene; en fase 5 graba controles UIA, no coordenadas
   catalogo.json          # Qué plantillas se publican como skill (hecho)
@@ -192,8 +193,12 @@ Cada fase termina con algo que funciona de punta a punta.
   `abrir_aplicacion` y `restaurar_ventana` nativas; plantillas publicadas
   vía `recorder/catalogo.json`; retirados `acctions/`, `planner.py`,
   `plan_executor.py` y `window_manager.py`; 16 tests.
-- **Fase 2 — API local.** FastAPI con `POST /orden`, `GET /skills`,
-  `GET /episodios`. La CLI pasa a usar la API. Base para el móvil.
+- **Fase 2 — API local (hecha).** `python -m api` (FastAPI + uvicorn) con
+  token en la cabecera `X-Token`: `POST /ordenes`, `POST /ordenes/{id}`
+  (contestar un dato o una confirmación), `DELETE /ordenes/{id}`,
+  `GET /skills`, `GET /episodios`, `GET /salud`. `cliente.py` es una CLI
+  que pasa por la API (el mismo camino que usará el móvil); `dispatcher.py`
+  sigue disponible sin servidor. Una sola orden se ejecuta a la vez.
 - **Fase 3 — LLM local.** Ollama + modelo 7–8B cuantizado. Frase →
   JSON `{skill, parametros}` o plan de varias skills, validado contra el
   catálogo. El clasificador actual responde primero si está muy seguro.
@@ -219,5 +224,46 @@ Cada fase termina con algo que funciona de punta a punta.
 - **Python 3.14:** algunas librerías (p. ej. CUDA para PyTorch) pueden tardar
   en tener versión compatible. Si hace falta GPU para entrenar, valorar un
   entorno separado con Python 3.12.
-- **Seguridad de la API:** escuchar solo en la red local y exigir un token
-  cuando se conecte el móvil.
+- **Seguridad de la API:** escucha solo en `127.0.0.1` y exige token. Para
+  el móvil habrá que abrirla a la red local (`0.0.0.0`) y, como el token
+  viaja en claro por HTTP, valorar HTTPS con certificado autofirmado.
+
+---
+
+## 9. Almacenamiento de la memoria (episodios, skills, conocimiento)
+
+**Decisión: seguir con JSONL de momento; pasar a SQLite + embeddings en la
+fase 4. No hacen falta MongoDB ni un servidor de base vectorial.**
+
+Qué guarda el agente hoy:
+
+| Dato                    | Dónde                        | Volumen esperado                       |
+| ----------------------- | ---------------------------- | -------------------------------------- |
+| Episodios (órdenes)     | `data/episodios.jsonl`       | ~50/día → ~20 000/año → unos 10–20 MB  |
+| Catálogo de skills      | código + `recorder/catalogo.json` | decenas o cientos                 |
+| Plantillas grabadas     | `recorder/templates.json`    | decenas o cientos                      |
+| Dataset del clasificador| `nlu/dataset.json`           | cientos o miles de frases              |
+
+Por qué no MongoDB: es un servidor aparte (instalar, arrancar, mantener)
+para un único usuario con datos pequeños. No aporta nada que SQLite (que
+viene con Python, es un solo archivo y aguanta millones de filas) no dé.
+
+Por qué no todavía una base vectorial: sirve para buscar "episodios
+parecidos" por significado, y eso solo hace falta cuando exista algo que
+use esos resultados (el planificador con LLM, fase 3–4). Con unos miles de
+episodios, comparar vectores con numpy a fuerza bruta tarda milisegundos.
+
+Plan de evolución (todo local y gratuito):
+
+1. **Ahora (fase 2):** JSONL, solo añadir al final, con un lock para los
+   hilos de la API. Todo el acceso pasa por `core/memoria.py`, así que
+   cambiar el almacenamiento no toca el resto del código.
+2. **Fase 4:** migrar a **SQLite** (`data/agente.db`): tablas de episodios,
+   pasos y contexto de sesión, con consultas reales (por skill, por fecha,
+   solo fallidos...). Los embeddings de cada frase se calculan en local
+   (p. ej. `sentence-transformers` multilingüe, ~100 MB, CPU) y se guardan
+   en la misma base. Búsqueda por similitud con numpy, o con la extensión
+   **sqlite-vec** si crece.
+3. **Solo si pasa de cientos de miles de vectores:** una base vectorial
+   embebida (LanceDB o Chroma en modo local), que también es un archivo y
+   no un servidor.

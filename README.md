@@ -16,6 +16,117 @@ agente autónomo con planificación abierta -> Gestión por voz para Móvil con 
 > plantillas grabadas publicadas en `recorder/catalogo.json`.
 > Cada orden queda registrada en `data/episodios.jsonl`.
 
+# Puesta en marcha y pruebas
+
+Todos los comandos se ejecutan en PowerShell **desde la raíz del proyecto**
+(la carpeta donde está este README). Requisitos: Windows 10/11 y Python 3.14.
+
+## 1. Preparar el entorno (solo la primera vez)
+
+```powershell
+# 1. Crear el entorno virtual (si ya existe la carpeta .venv, sáltate esta línea)
+python -m venv .venv
+
+# 2. ACTIVARLO. Sin este paso, pip instala en tu Python global.
+.\.venv\Scripts\Activate.ps1
+
+# 3. Comprobar que está activo: debe mostrar una ruta que acabe en \.venv
+python -c "import sys; print(sys.prefix)"
+
+# 4. Instalar dependencias (torch tarda un rato: es la versión CPU, ~200 MB)
+python -m pip install -r requirements.txt
+```
+
+Con el entorno activo, el prompt de PowerShell empieza por `(.venv)`. Hay que
+activarlo en **cada terminal nueva** antes de ejecutar nada del proyecto
+(también en la segunda terminal del paso 5).
+
+> - Si PowerShell no deja activarlo ("la ejecución de scripts está
+>   deshabilitada"), ejecuta una vez
+>   `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` y vuelve a probar.
+> - Si al instalar ves `Requirement already satisfied ... in C:\Users\...\Python314\...`,
+>   el entorno **no** está activo: vuelve al paso 2.
+> - También puedes no usar entorno virtual e instalar en tu Python global
+>   (pasos 1–3 fuera); funciona igual.
+
+## 2. Entrenar el clasificador (primera vez y cada vez que cambie el dataset)
+
+`nlu/modelo.pt` no se sube a git, así que en un clon nuevo hay que generarlo:
+
+```powershell
+python .\nlu\training.py
+```
+
+Al final muestra cómo clasifica unas frases de prueba.
+
+## 3. Comprobar que todo está bien
+
+```powershell
+python -m pytest tests
+```
+
+Deben pasar todos los tests (no abren ventanas ni tocan nada del sistema).
+
+## 4. Usar el agente desde la consola (sin servidor)
+
+```powershell
+python .\dispatcher.py
+```
+
+Órdenes de ejemplo para probar:
+
+| Orden                                   | Qué debería pasar                                                  |
+| --------------------------------------- | ------------------------------------------------------------------ |
+| `apunta que mañana llamo a María`        | Crea `data/notas/<fecha>_manana-llamo-a-maria.md`                  |
+| `crea una nota`                          | Te pregunta qué apuntar y luego la crea                            |
+| `abre la calculadora`                    | Abre la Calculadora y comprueba que aparece su ventana             |
+| `abre discrod`                           | Abre Discord aunque esté mal escrito. Si ya estaba abierto (aunque esté escondido en la bandeja del sistema) lo trae al frente en vez de relanzarlo |
+| `quiero jugar a <juego>`                 | Si Steam está cerrado lo abre, si está minimizado lo restaura, y luego reproduce la plantilla grabada (pide confirmación antes del último clic) |
+| `qué tiempo hace hoy`                    | Lo rechaza: no sabe hacerlo                                        |
+
+Mientras una orden espera (por ejemplo, a que se abra una app) verás avisos
+que empiezan por `…`. `Ctrl+C` cancela la orden en curso sin cerrar el
+programa. Escribe `salir` para terminar.
+
+## 5. Usar el agente a través de la API (así funcionará el móvil)
+
+En una terminal, arranca el servidor y déjalo abierto:
+
+```powershell
+python -m api
+```
+
+La primera vez genera un token en `data/api_token.txt`. En **otra** terminal:
+
+```powershell
+python .\cliente.py
+```
+
+Funciona igual que el dispatcher, pero pasando por HTTP. También puedes
+probar la API en el navegador: abre <http://127.0.0.1:8765/docs>, pulsa
+**Authorize**, pega el contenido de `data/api_token.txt` y prueba
+`POST /ordenes` con `{"texto": "apunta que probar la API"}`.
+
+Para pararlo, `Ctrl+C` en la terminal del servidor.
+
+## 6. Dónde mirar los resultados
+
+| Archivo                     | Qué contiene                                                     |
+| --------------------------- | ---------------------------------------------------------------- |
+| `data/notas/`               | Notas creadas                                                    |
+| `data/episodios.jsonl`      | Una línea por orden: texto, skill, plan, pasos, si funcionó      |
+| `data/api_token.txt`        | Token de la API (bórralo para generar uno nuevo)                 |
+
+`data/` no se sube a git. Puedes borrarla entera para empezar de cero.
+
+## 7. Configuración útil (`config.py`)
+
+- `UMBRAL_CONFIANZA`: por debajo, el agente no actúa y dice que no está seguro.
+- `ALIAS_APLICACIONES`: nombres alternativos (`"navegador": "Google Chrome"`).
+- `ESPERA_MAX_APERTURA`: segundos que espera a que aparezca la ventana de una app (30 por defecto).
+- `API_HOST` / `API_PUERTO`: `127.0.0.1` solo deja conectarse desde este PC;
+  `0.0.0.0` permite conectarse desde otros dispositivos de tu red (el móvil).
+
 # Asistente Local — Documentación
 
 ## Estructura del proyecto
@@ -24,6 +135,8 @@ agente autónomo con planificación abierta -> Gestión por voz para Móvil con 
 asistente/
 ├── config.py               # Configuración global (umbral, rutas, alias de apps)
 ├── dispatcher.py           # Cliente de consola: lee órdenes y llama a core.agente
+├── cliente.py              # Cliente de consola que pasa por la API HTTP
+├── api/                    # API HTTP local (python -m api): servidor.py, token.py
 ├── add_phrases.py          # Utilidad para añadir frases al dataset (ver sección más abajo)
 ├── requirements.txt        # Dependencias
 ├── README.md               # Esta documentación
@@ -62,12 +175,12 @@ asistente/
 
 ## Cómo funciona el sistema (resumen)
 
-1. Escribes una orden en texto (`"abre aplicacion X"`). __Mas adelante será con Voz__
-2. El **clasificador de intención** (modelo PyTorch) decide qué categoría es (`abrir_aplicacion`) y con qué confianza.
-3. Si la confianza es suficiente (confianza > 0,750) y la intención no es `"ninguna"`, el **dispatcher** extrae el slot (`"aplicacion X"`) y llama a la acción correspondiente.
-4. La **acción** carga la plantilla grabada por demostración y la reproduce sustituyendo el hueco `{slot}` por el valor real. __A matizar y generar la acción con otro modelo__
+1. Escribes una orden (`"quiero jugar a Destiny 2"`) en la consola o la envías a la API. __Más adelante será con voz__
+2. El **router** usa el clasificador de intención (PyTorch) para decidir la skill (`ejecutar_en_steam`) y extrae el parámetro (`juego = "Destiny 2"`). Si la confianza no llega a `UMBRAL_CONFIANZA` o la intención es `"ninguna"`, no hace nada.
+3. El **planificador** mira el estado real de Windows y calcula qué hace falta antes (abrir Steam o restaurarlo).
+4. El **executor** ejecuta cada paso, pide confirmación en los irreversibles, verifica que ha funcionado, replanifica una vez si algo falla y registra el episodio.
 
-De momento el modelo solo clasifica texto. El resto provisionalmente es código determinista.
+De momento el modelo solo clasifica texto. El resto es código determinista (ver ARQUITECTURA.md para la evolución).
 
 ---
 
