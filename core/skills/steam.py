@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from config import ESPERA_MAX_JUEGO
+from core import control
 from core.estado import normalizar
 from core.skills.base import Resultado, Skill
 
@@ -211,6 +212,7 @@ class EjecutarEnSteam(Skill):
         while time.monotonic() < limite:
             if _proceso_del_juego(juego):
                 return True
+            control.comprobar()   # botón de pánico
             time.sleep(1.0)
         datos["motivo_verificacion"] = (
             f"Steam recibió la orden, pero '{juego.nombre}' no ha arrancado en {self.espera_max} s "

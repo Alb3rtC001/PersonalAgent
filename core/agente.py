@@ -25,11 +25,12 @@ import inspect
 import logging
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable
 
 from config import CADUCIDAD_CONTEXTO, LLM_ACTIVO
+from core import control
 from core.agenda import Agenda, Planificador, Tarea
 from core.estado import normalizar
 from core.skills.agenda import SKILLS_DE_AGENDA, usar_agenda
@@ -89,14 +90,22 @@ class Agente:
 
     # --- Por pasos (API) -----------------------------------------------------
 
-    def interpretar(self, texto: str) -> Interpretacion:
+    def interpretar(self, texto: str, programar_en: timedelta | None = None) -> Interpretacion:
         texto = limpiar_texto(texto)
         nueva_orden(texto)   # la traza de la orden anterior se borra aquí
         contexto = {"ultima_aplicacion": self.contexto("ultima_aplicacion")}
         log.debug("Contexto de la sesión: %s", contexto)
 
         interp = None
-        tiempo = separar_tiempo(texto)
+        tiempo = None if programar_en else separar_tiempo(texto)
+        if programar_en:
+            # Tiempo puesto aparte (los recuadros de minutos/segundos de la interfaz):
+            # se programa lo que sea, también una nota, porque lo has pedido así.
+            interp = self._interpretar_texto(texto, contexto)
+            if not interp.motivo_rechazo:
+                segundos = int(programar_en.total_seconds())
+                interp.programada = {"cuando": datetime.now() + programar_en, "orden": texto,
+                                     "expresion": f"dentro de {segundos // 60} min {segundos % 60} s"}
         if tiempo:
             # "abre steam dentro de 5 min": se interpreta "abre steam" y se programa.
             orden, cuando, expresion, relativa = tiempo
@@ -146,6 +155,16 @@ class Agente:
 
     def ejecutar(self, interp: Interpretacion, params: dict[str, Any],
                  confirmar: Confirmar | None = None) -> Resultado:
+        if control.en_pausa():
+            return Resultado(False, "El agente está en pausa (botón de pánico): reanúdalo para seguir.")
+        try:
+            return self._ejecutar(interp, params, confirmar)
+        except control.Detenido:
+            log.info("Orden detenida con el botón de pánico.")
+            return Resultado(False, control.MENSAJE, datos={"detenido": True})
+
+    def _ejecutar(self, interp: Interpretacion, params: dict[str, Any],
+                  confirmar: Confirmar | None = None) -> Resultado:
         with self._lock:
             if interp.programada:
                 resultado = self._programar(interp, params, confirmar)
@@ -296,6 +315,7 @@ class Agente:
         historial, mensajes, resultado = [], [], Resultado(False, "Plan vacío.")
         for i, (nombre, params) in enumerate(pasos, 1):
             if i > 1:
+                control.comprobar()   # botón de pánico
                 time.sleep(PAUSA_ENTRE_PASOS)  # que la app reaccione (nueva pestaña, cambio de canal...)
             log.debug("--- Paso %d/%d: %s", i, len(pasos), self.registro[nombre].describir_paso(params))
             resultado = ejecutar_orden(
@@ -366,8 +386,11 @@ class Agente:
     # --- Interactiva (CLI) ---------------------------------------------------
 
     def procesar(self, texto: str, pedir: Pedir | None = None,
-                 confirmar: Confirmar | None = None) -> Resultado:
-        interp = self.interpretar(texto)
+                 confirmar: Confirmar | None = None,
+                 programar_en: timedelta | None = None) -> Resultado:
+        if control.en_pausa():
+            return Resultado(False, "El agente está en pausa (botón de pánico): reanúdalo para seguir.")
+        interp = self.interpretar(texto, programar_en=programar_en)
         if interp.motivo_rechazo:
             return Resultado(False, interp.motivo_rechazo)
 

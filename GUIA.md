@@ -56,6 +56,7 @@ fase 6, cuando haya cientos de órdenes reales registradas (sección 7).
 
 ```powershell
 .\.venv\Scripts\Activate.ps1      # si usas el entorno virtual
+python .\interfaz.py             # ventana con botón de pánico y temporizador
 python .\dispatcher.py            # consola directa
 python .\dispatcher.py --sin-llm  # solo el clasificador: no usa la GPU
 # o bien: python -m api  (y en otra terminal: python .\cliente.py)

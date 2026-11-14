@@ -19,6 +19,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
+from core import control
 from core.estado import EstadoMundo
 from core.memoria import registrar_episodio
 from core.planner import Paso, planificar
@@ -33,7 +34,11 @@ def _ejecutar_paso(skill: Skill, params: dict[str, Any]) -> Resultado:
     log.debug("Ejecutando %s", skill.describir_paso(params))
     t0 = time.monotonic()
     try:
+        control.comprobar()
         resultado = skill.ejecutar(**params)
+    except control.Detenido:
+        log.info("Orden detenida con el botón de pánico durante %s.", skill.nombre)
+        return Resultado(False, control.MENSAJE, datos={"detenido": True})
     except Exception as e:  # una skill rota no debe tumbar al agente
         log.exception("La skill '%s' lanzó una excepción:", skill.nombre)   # traceback en la traza
         return Resultado(False, f"Error ejecutando '{skill.nombre}': {e}")
@@ -44,6 +49,8 @@ def _ejecutar_paso(skill: Skill, params: dict[str, Any]) -> Resultado:
         t0 = time.monotonic()
         try:
             verificado = skill.verificar(resultado)
+        except control.Detenido:
+            return Resultado(False, control.MENSAJE, {**resultado.datos, "detenido": True})
         except Exception as e:
             log.exception("La verificación de '%s' lanzó una excepción:", skill.nombre)
             return Resultado(False, f"Error verificando '{skill.nombre}': {e}", resultado.datos)

@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from config import RUTA_BD, TOLERANCIA_RETRASO_TAREAS
+from core import control
 
 log = logging.getLogger("personalagent")
 
@@ -137,6 +138,8 @@ class Planificador:
         """Ejecuta las tareas a las que les toca (una pasada). Devuelve las que ha tratado."""
         ahora = ahora or datetime.now()
         tratadas = []
+        if control.en_pausa():   # botón de pánico: las tareas esperan a que se reanude
+            return tratadas
         for tarea in self.agenda.pendientes():
             if tarea.cuando > ahora:
                 break   # están ordenadas por hora

@@ -249,7 +249,16 @@ Cada fase termina con algo que funciona de punta a punta.
   - ✅ Steam por sus archivos y su protocolo: `ejecutar_en_steam` lanza con
     `steam://rungameid/<id>` y comprueba que el juego arranca (sustituye a la
     plantilla de clics); `actualizaciones_steam` lee los `appmanifest_*.acf`.
-- **Fase 5 — Grabadora semántica + LLM (decidido).** UI Automation (CPU,
+- **Seguridad y control (antes de la fase 5).**
+  - ✅ Botón de pánico (`core/control.py`): corta lo que esté en marcha en el
+    siguiente punto de control (cada carácter, cada espera, cada paso) y deja
+    el agente en pausa, también la agenda, hasta reanudar.
+  - ✅ Interfaz (`interfaz.py`): respuestas, entrada, temporizador (min/s) y
+    botón de pánico.
+  - ⏳ Aviso visible mientras actúa, niveles de riesgo y modo seguro, lista de
+    ventanas prohibidas, registro de actividad legible.
+- **Fase 5 — Grabadora semántica + LLM (decidido; `uiautomation` 2.0.29 y
+  `comtypes` 1.4.17 instalados).** UI Automation (CPU,
   sin GPU): la grabadora guarda el control pulsado (tipo, nombre,
   AutomationId) y los atajos usados, no coordenadas; con una sola
   demostración el LLM la convierte en una skill con parámetros; al

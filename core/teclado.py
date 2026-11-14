@@ -18,6 +18,7 @@ import ctypes
 import ctypes.wintypes as wt
 import re
 import time
+from core import control
 
 INPUT_KEYBOARD = 1
 KEYEVENTF_EXTENDEDKEY = 0x0001
@@ -96,6 +97,7 @@ def escribir(texto: str, pausa: float = 0.005) -> int:
         if _enviar([_evento(scan=unidad, flags=KEYEVENTF_UNICODE),
                     _evento(scan=unidad, flags=KEYEVENTF_UNICODE | KEYEVENTF_KEYUP)]) == 2:
             enviados += 1
+        control.comprobar()   # botón de pánico
         time.sleep(pausa)  # algunas apps pierden caracteres si llegan todos de golpe
     return enviados
 

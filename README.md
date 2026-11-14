@@ -105,7 +105,24 @@ python -m pytest tests
 
 Deben pasar todos los tests (no abren ventanas ni tocan nada del sistema).
 
-## 4. Usar el agente desde la consola (sin servidor)
+## 4. Usar el agente con la interfaz (recomendado)
+
+```powershell
+python .\interfaz.py            # o: python .\interfaz.py --sin-llm
+```
+
+Una ventana con tres zonas:
+
+- **Respuestas** (arriba): los avisos `…` y los resultados `✔` / `✘`, como en la terminal.
+- **Entrada**: escribe la orden y pulsa Enter.
+- **Control** (abajo): *Programar dentro de* `[min] [s]` (máximo 99 min y 60 s;
+  0 y 0 = ahora) y el **botón de pánico ■ PARAR**: corta al instante lo que esté
+  haciendo (escribir, esperar una ventana, un plan de varios pasos) y deja el
+  agente en pausa, también las tareas programadas, hasta que pulses **▶ REANUDAR**.
+
+Las confirmaciones y los datos que falten salen en ventanas emergentes.
+
+## 4b. Usar el agente desde la consola (sin servidor)
 
 ```powershell
 python .\dispatcher.py

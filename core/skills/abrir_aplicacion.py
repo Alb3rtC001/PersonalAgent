@@ -25,6 +25,7 @@ import time
 from dataclasses import dataclass
 
 from config import ALIAS_APLICACIONES, ESPERA_MAX_APERTURA
+from core import control
 from core.estado import (
     buscar_ventana,
     es_visible,
@@ -166,6 +167,7 @@ class AbrirAplicacion(Skill):
             # Apps cuya ventana no lleva su nombre (p. ej. el Explorador muestra la carpeta).
             if handles_ventanas() - antes:
                 return True
+            control.comprobar()   # botón de pánico
             time.sleep(0.5)
 
         datos["motivo_verificacion"] = (

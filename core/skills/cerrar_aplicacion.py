@@ -28,6 +28,7 @@ import time
 from pathlib import Path
 
 from config import CERRAR_TERMINA_BANDEJA, ESPERA_MAX_CIERRE
+from core import control
 from core.estado import (
     listar_ventanas_abiertas,
     pedir_cierre,
@@ -167,6 +168,7 @@ class CerrarAplicacion(Skill):
                 ocultas_desde = ocultas_desde or time.monotonic()
                 if time.monotonic() - ocultas_desde >= GRACIA_OCULTA:
                     return
+            control.comprobar()   # botón de pánico
             time.sleep(0.3)
 
     def ejecutar(self, aplicacion: str = "") -> Resultado:
@@ -235,6 +237,7 @@ class CerrarAplicacion(Skill):
             )
             if not quedan:
                 return True
+            control.comprobar()   # botón de pánico
             time.sleep(0.3)
         datos["motivo_verificacion"] = f"Pedí cerrar '{datos['aplicacion']}' pero sus ventanas siguen ahí."
         return False

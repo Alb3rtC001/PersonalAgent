@@ -403,7 +403,7 @@ class ServidorLLM:
     def permitir_reintento(self) -> None:
         self._no_reintentar_hasta = 0.0
 
-    def completar(self, mensajes: list[dict], esquema: dict, max_tokens: int = 700) -> str:
+    def completar(self, mensajes: list[dict], esquema: dict, max_tokens: int = 1500) -> str:
         self._ultimo_uso = time.monotonic()
         r = httpx.post(f"{self.url}/v1/chat/completions", timeout=60, json={
             "messages": mensajes,

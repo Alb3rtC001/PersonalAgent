@@ -199,6 +199,11 @@ class Router:
         if not getattr(r, "disponible", True):
             log.debug("El LLM no está disponible: me quedo con el clasificador.")
             return interp  # sin LLM: lo que dijo el clasificador
+        if r.skill is None and interp.skill and (r.motivo or "").startswith("El LLM no ha devuelto"):
+            # Respuesta rota (p. ej. cortada con un texto muy largo): si el clasificador
+            # tenía una interpretación, vale más esa que nada.
+            log.debug("Respuesta del LLM no válida (%s): me quedo con el clasificador.", r.motivo)
+            return interp
         log.debug("LLM: skill=%s params=%s pasos=%s motivo=%s", r.skill, r.params,
                   getattr(r, "pasos", None) or "-", r.motivo)
         if getattr(r, "pasos", None):

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import time
 
+from core import control
 from core.estado import hwnd_activo, poner_foco
 from core.skills.abrir_aplicacion import AppInstalada, listar_apps_instaladas
 from core.skills.base import Resultado, Skill
@@ -63,6 +64,7 @@ class _EnAplicacion(Skill):
                           "permitido); no escribo nada para no hacerlo en otra ventana.")
         if not ya_tenia_foco:
             # Margen para que la app pase el foco a su control antes de la primera tecla.
+            control.comprobar()   # botón de pánico
             time.sleep(PAUSA_TRAS_CAMBIAR_FOCO)
         return ventana, None
 
@@ -148,6 +150,7 @@ class PulsarTeclas(_EnAplicacion):
             if not pulsar(combinacion):
                 break
             pulsadas.append(describir_combinacion(combinacion))
+            control.comprobar()   # botón de pánico
             time.sleep(0.05)
         return Resultado(True, f"Pulsado en '{ventana['titulo']}': {', '.join(pulsadas)}", datos={
             "hwnd": ventana["hwnd"], "titulo": ventana["titulo"], "aplicacion": aplicacion,
