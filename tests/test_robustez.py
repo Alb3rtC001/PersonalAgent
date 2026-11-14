@@ -44,7 +44,7 @@ class LLMFalso:
         self.servidor = ServidorFalso()
         self.llamadas = 0
 
-    def interpretar(self, texto):
+    def interpretar(self, texto, contexto=None):
         self.llamadas += 1
         return ResultadoLLM("abrir_aplicacion", {"aplicacion": "discord"})
 

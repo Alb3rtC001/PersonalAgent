@@ -127,6 +127,8 @@ python .\dispatcher.py
 | `abre la calculadora` → `escribe 12+30` → `pulsa enter` | Escribe y calcula en la Calculadora: si no dices dónde, usa la última app con la que has trabajado (15 min). Si estaba minimizada, la restaura antes. `pulsa enter` pide confirmación cuando lo interpreta el LLM (un Enter puede enviar algo) |
 | `escribe hola a todos en discord`        | Pone Discord delante y escribe el texto (sin pulsar Enter). Ojo: escribe donde la app tenga el cursor; ver ARQUITECTURA.md §11 |
 | `pulsa control s en el bloc de notas`    | Teclas y combinaciones: `enter`, `tab 3 veces`, `flecha abajo`, `control mayúsculas esc`... |
+| `abre la calculadora, escribe 25*4 y pulsa enter` | Orden de varios pasos: te enseña el plan, lo confirmas una vez y lo ejecuta en orden |
+| `busca el horario del mercadona en opera` | Usa los atajos de la app (`core/atajos_apps.json`): control l → escribir → enter |
 | `minimiza discord`                       | La rechaza: no hay skill para minimizar (no la confunde con otra)   |
 | `qué tiempo hace hoy`                    | Lo rechaza: no sabe hacerlo                                        |
 
@@ -161,6 +163,7 @@ Para pararlo, `Ctrl+C` en la terminal del servidor.
 | --------------------------- | ---------------------------------------------------------------- |
 | `data/notas/`               | Notas creadas                                                    |
 | `data/episodios.jsonl`      | Una línea por orden: texto, skill, quién la interpretó (`origen`: clasificador o llm), plan, pasos, si funcionó |
+| `data/ultima_orden.log`     | **Traza de la última orden**: qué entendió el clasificador y el LLM, el plan, cada paso con su duración y los errores con la línea del código. Cada orden nueva la sobrescribe |
 | `data/llm_servidor.log`     | Salida del servidor del LLM (para diagnosticar si no arranca)    |
 | `data/api_token.txt`        | Token de la API (bórralo para generar uno nuevo)                 |
 
@@ -171,6 +174,10 @@ Para pararlo, `Ctrl+C` en la terminal del servidor.
 - `UMBRAL_CONFIANZA`: por debajo, el agente no actúa y dice que no está seguro.
 - `ALIAS_APLICACIONES`: nombres alternativos (`"navegador": "Google Chrome"`).
 - `ESPERA_MAX_APERTURA`: segundos que espera a que aparezca la ventana de una app (30 por defecto).
+- `LLM_VRAM_MAX_MIB`: **límite de VRAM del LLM**. Si el modelo no cabe entero, pone en la GPU solo
+  las capas que quepan y el resto va al procesador (ocupa menos, tarda más). 5200 = entero (~0,5 s
+  por orden), 3500 = ~2,6 s, 2100 = ~5 s, 0 = solo procesador (~7 s).
+- `LLM_MARGEN_VRAM_MIB` / `LLM_TEMPERATURA_MAX`: protecciones de la GPU (ver ARQUITECTURA.md §12).
 - `LLM_ACTIVO`: `False` para no usar el LLM. `LLM_DESCARGAR_TRAS`: segundos sin
   uso tras los que se descarga de la GPU (0 = nunca). `RUTA_MODELO_LLM` para usar otro modelo GGUF;
   `LLM_CAPAS_GPU = 0` para usarlo sin GPU (mucho más lento).

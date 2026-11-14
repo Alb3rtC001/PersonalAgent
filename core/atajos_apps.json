@@ -1,0 +1,69 @@
+{
+  "Google Chrome": {
+    "nombres": ["chrome", "google chrome", "navegador", "google"],
+    "atajos": {
+      "nueva pestaña": "control t",
+      "cerrar la pestaña actual": "control w",
+      "reabrir la última pestaña cerrada": "control shift t",
+      "ir a la barra de direcciones y seleccionar lo que haya (para buscar en Google: después escribir la búsqueda y pulsar enter)": "control l",
+      "pestaña siguiente": "control tab",
+      "pestaña anterior": "control shift tab",
+      "recargar la página": "f5",
+      "página anterior": "alt izquierda",
+      "página siguiente": "alt derecha",
+      "buscar texto en la página": "control f",
+      "nueva ventana": "control n"
+    }
+  },
+  "Opera": {
+    "nombres": ["opera", "navegador opera"],
+    "atajos": {
+      "nueva pestaña": "control t",
+      "cerrar la pestaña actual": "control w",
+      "reabrir la última pestaña cerrada": "control shift t",
+      "ir a la barra de direcciones y seleccionar lo que haya (para buscar: después escribir la búsqueda y pulsar enter)": "control l",
+      "pestaña siguiente": "control tab",
+      "recargar la página": "f5"
+    }
+  },
+  "Discord": {
+    "nombres": ["discord"],
+    "atajos": {
+      "ir a un canal, servidor o conversación (selector rápido: después escribir el nombre y pulsar enter)": "control k",
+      "silenciar o activar el micrófono": "control shift m",
+      "ensordecer o dejar de ensordecer": "control shift d",
+      "canal anterior": "alt arriba",
+      "canal siguiente": "alt abajo"
+    }
+  },
+  "Spotify": {
+    "nombres": ["spotify"],
+    "atajos": {
+      "ir al buscador (después escribir y pulsar enter)": "control l",
+      "reproducir o pausar": "espacio",
+      "siguiente canción": "control derecha",
+      "canción anterior": "control izquierda",
+      "subir el volumen": "control arriba",
+      "bajar el volumen": "control abajo"
+    }
+  },
+  "Bloc de notas": {
+    "nombres": ["bloc de notas", "notepad"],
+    "atajos": {
+      "guardar": "control s",
+      "nueva pestaña": "control t",
+      "cerrar la pestaña": "control w",
+      "buscar": "control f",
+      "seleccionar todo": "control a"
+    }
+  },
+  "Explorador de archivos": {
+    "nombres": ["explorador", "explorador de archivos"],
+    "atajos": {
+      "nueva ventana": "control n",
+      "ir a la barra de direcciones": "control l",
+      "nueva carpeta": "control shift n",
+      "buscar": "control e"
+    }
+  }
+}

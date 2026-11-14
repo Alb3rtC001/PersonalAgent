@@ -7,7 +7,6 @@ Documentación interactiva (para probar a mano): http://127.0.0.1:8765/docs
 """
 
 import argparse
-import logging
 import os
 
 import uvicorn
@@ -16,6 +15,7 @@ from api.servidor import crear_app
 from api.token import VARIABLE_ENTORNO, obtener_token
 from config import API_HOST, API_PUERTO, LLM_ACTIVO, RUTA_TOKEN
 from core.agente import Agente
+from core.traza import configurar_logs
 
 
 def main() -> None:
@@ -25,9 +25,9 @@ def main() -> None:
     parser.add_argument("--llm-cpu", action="store_true", help="usar el LLM sin GPU (mucho más lento)")
     args = parser.parse_args()
 
-    # Avisos de progreso de las skills en la consola del servidor.
-    logging.basicConfig(format="  … %(message)s")
-    logging.getLogger("personalagent").setLevel(logging.INFO)
+    # Avisos de progreso en la consola del servidor; traza completa de la
+    # última orden en data/ultima_orden.log.
+    configurar_logs()
 
     token = obtener_token()
     origen = f"variable de entorno {VARIABLE_ENTORNO}" if os.environ.get(VARIABLE_ENTORNO) else str(RUTA_TOKEN)

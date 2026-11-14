@@ -121,9 +121,18 @@ class PulsarTeclas(_EnAplicacion):
                    "'tab tab', 'flecha abajo 3 veces'"),
         "aplicacion": DESCRIPCION_APLICACION,
     }
-    parametros_literales = frozenset({"teclas"})
+    # Las teclas no se anclan a la frase: se valida que existan (comprobar_valores)
+    # y, si las propone el LLM, se confirman antes de pulsarlas.
+    parametros_sin_anclar = frozenset({"teclas"})
     confirmar_si_llm = True   # un Enter puede enviar un mensaje; alt+f4 cierra la ventana
     coste = 1
+
+    def comprobar_valores(self, params: dict) -> str | None:
+        try:
+            interpretar_teclas(params.get("teclas") or "")
+        except ErrorTeclas as e:
+            return str(e)
+        return None
 
     def ejecutar(self, teclas: str = "", aplicacion: str = "") -> Resultado:
         try:

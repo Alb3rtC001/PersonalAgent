@@ -64,6 +64,10 @@ class Skill(ABC):
     # Parámetros que deben ser un trozo literal de la frase del usuario (el texto
     # a escribir, las teclas): si el LLM los reformula, la orden no se acepta.
     parametros_literales: frozenset[str] = frozenset()
+    # Parámetros que NO se comparan con la frase porque la skill sabe validarlos
+    # ella misma (comprobar_valores): las teclas ("enter" no suele estar en la
+    # frase "busca X en opera", pero es una tecla real).
+    parametros_sin_anclar: frozenset[str] = frozenset()
     # Skills con varios parámetros que el extractor simple (slots.py) no sabe
     # separar ("escribe hola en discord"): si hay LLM, siempre se le consulta.
     interpretar_con_llm: bool = False
@@ -109,6 +113,13 @@ class Skill(ABC):
             valor = params.get(nombre)
             if valor is None or (isinstance(valor, str) and not valor.strip()):
                 return nombre
+        return None
+
+    def comprobar_valores(self, params: dict[str, Any]) -> str | None:
+        """
+        Comprueba que los valores tienen sentido ANTES de ejecutar (p. ej. que
+        unas teclas existen). Devuelve el error o None. Por defecto, todo vale.
+        """
         return None
 
     def describir_paso(self, params: dict[str, Any]) -> str:

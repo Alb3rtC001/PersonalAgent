@@ -34,17 +34,24 @@ from typing import Any
 import httpx
 
 from config import (
+    LLM_ARGUMENTOS_EXTRA,
     LLM_CAPAS_GPU,
     LLM_CONTEXTO,
     LLM_DESCARGAR_TRAS,
     LLM_ESPERA_ARRANQUE,
     LLM_PLANTILLA_CHAT,
     LLM_PUERTO,
+    LLM_MARGEN_VRAM_MIB,
+    LLM_TEMPERATURA_MAX,
+    LLM_VRAM_MAX_MIB,
     RUTA_DATOS,
     RUTA_LLAMA_SERVER,
     RUTA_MODELO_LLM,
 )
+from core.atajos import app_conocida, apps_mencionadas, cargar_atajos, describir_atajos
 from core.estado import normalizar
+from core.gguf import numero_de_capas
+from core.gpu import leer_gpu, olvidar_cache
 from core.skills.base import Skill
 
 log = logging.getLogger("personalagent")
@@ -53,17 +60,23 @@ RUTA_EJEMPLOS = Path(__file__).parent / "llm_ejemplos.json"
 NINGUNA = "ninguna"
 CREATE_NO_WINDOW = 0x08000000
 REINTENTO_TRAS_FALLO = 300   # s sin volver a intentar arrancar el LLM si falló
+VRAM_BASE_MIB = 300          # lo que ocupa aunque no haya capas en la GPU (medido: ~276)
+TOLERANCIA_VRAM_MIB = 100    # pasarse del límite menos que esto no obliga a recargar
 NO_DISPONIBLE = "El LLM local no está disponible."
+MAX_PASOS = 12   # tope de pasos por orden
+NO_SE_HACER = "No sé hacer eso todavía."
 
 INSTRUCCIONES = """\
 Eres el intérprete de órdenes de un asistente que controla un PC con Windows.
-Convierte la orden del usuario en la skill que la cumple y sus parámetros.
+Convierte la orden del usuario en la lista de pasos (skills con sus
+parámetros) que la cumplen, en orden. Casi siempre es un solo paso.
 
 Reglas:
-1. Elige una skill solo si hace EXACTAMENTE lo que se pide. Si la acción es
-   otra (minimizar, maximizar, reiniciar, volumen, enviar mensajes, buscar en
-   internet, responder preguntas, charlar...), responde "ninguna", aunque
-   alguna skill se parezca.
+1. Usa una skill solo si hace EXACTAMENTE lo que se pide. Si alguna parte de
+   la orden no se puede hacer con las skills o con los atajos de teclado que
+   se indiquen (minimizar, reiniciar, volumen del sistema, responder
+   preguntas, leer lo que hay en pantalla, charlar...), responde un único
+   paso "ninguna", aunque alguna skill se parezca.
 2. Copia los valores tal como los escribe el usuario, sin corregirlos ni
    traducirlos, y sin artículos al principio ("la calculadora" -> "calculadora").
 3. Si la orden no dice el valor de un parámetro, no lo incluyas: se le
@@ -75,6 +88,14 @@ Reglas:
    archivo. El texto a escribir y las teclas se copian exactamente como los
    dice el usuario (sin las palabras de la orden: "escribe hola en discord"
    -> texto "hola", aplicacion "discord").
+6. Para acciones dentro de una aplicación sin skill propia (nueva pestaña,
+   buscar en el navegador, ir a un canal...) usa pulsar_teclas con los
+   atajos conocidos que se indiquen y escribir_texto, en varios pasos.
+   Buscar algo en un navegador (Chrome, Opera, Google) SÍ se puede: ir a la
+   barra de direcciones, escribir la búsqueda y pulsar enter. En
+   pulsar_teclas pon solo nombres de teclas (enter, tab, control k...).
+7. Si la orden no dice la aplicación, no pongas el parámetro "aplicacion":
+   se usará la última aplicación usada.
 
 Skills disponibles:
 """
@@ -136,7 +157,21 @@ class ServidorLLM:
                  puerto: int = LLM_PUERTO, capas_gpu: int = LLM_CAPAS_GPU,
                  contexto: int = LLM_CONTEXTO, plantilla: str | None = LLM_PLANTILLA_CHAT,
                  espera_max: float = LLM_ESPERA_ARRANQUE,
-                 descargar_tras: float = LLM_DESCARGAR_TRAS):
+                 descargar_tras: float = LLM_DESCARGAR_TRAS,
+                 argumentos_extra: list[str] | None = None,
+                 vram_max: int = LLM_VRAM_MAX_MIB,
+                 margen_vram: int = LLM_MARGEN_VRAM_MIB,
+                 temperatura_max: int = LLM_TEMPERATURA_MAX):
+        self.argumentos_extra = list(LLM_ARGUMENTOS_EXTRA if argumentos_extra is None else argumentos_extra)
+        self.vram_max = vram_max
+        self.margen_vram = margen_vram
+        self.temperatura_max = temperatura_max
+        # Lo que se decidió y se midió en la última carga (para `llm` y la traza).
+        self.capas_en_gpu: int | None = None
+        self.capas_totales: int | None = None
+        self.vram_medida: int | None = None
+        self._capas_forzadas: int | None = None   # tras corregir una carga que se pasó del límite
+        self._vram_antes: int | None = None
         self.ejecutable = Path(ejecutable)
         self.modelo = Path(modelo)
         self.puerto = puerto
@@ -172,6 +207,13 @@ class ServidorLLM:
         with self._lock:
             self._ultimo_uso = time.monotonic()
             if self.activo():
+                if self._gpu_caliente():
+                    log.warning("La GPU está a %d °C (límite %d): descargo el LLM y sigo solo con el "
+                                "clasificador; lo reintento en %d min.", leer_gpu().temperatura,
+                                self.temperatura_max, REINTENTO_TRAS_FALLO // 60)
+                    self._parar_sin_lock()
+                    self._no_reintentar_hasta = time.monotonic() + REINTENTO_TRAS_FALLO
+                    return False
                 return True
             if time.monotonic() < self._no_reintentar_hasta:
                 return False  # falló hace poco: no hacer esperar cada orden
@@ -180,36 +222,131 @@ class ServidorLLM:
                             self.ejecutable.parent.parent)
                 self._no_reintentar_hasta = float("inf")
                 return False
-            if not self.cargado_por_nosotros():
+            if self.cargado_por_nosotros():
+                return self._esperar_carga()   # arrancado, pero aún no responde
+            motivo = self._motivo_para_no_cargar()
+            if motivo:
+                log.warning("%s Sigo solo con el clasificador; lo reintento en %d min.",
+                            motivo, REINTENTO_TRAS_FALLO // 60)
+                self._no_reintentar_hasta = time.monotonic() + REINTENTO_TRAS_FALLO
+                return False
+            self._arrancar()
+            if not self._esperar_carga():
+                return False
+            if self._se_pasa_del_limite():
+                # La estimación se quedó corta: se recarga con menos capas en la GPU (una vez).
+                self._parar_sin_lock()
                 self._arrancar()
-
-            proceso = self._proceso
-            limite = time.monotonic() + self.espera_max
-            while time.monotonic() < limite:
-                if self._proceso is not proceso:
-                    return False   # lo han parado a propósito (llm off) mientras cargaba
-                if proceso.poll() is not None:
-                    log.warning("El servidor del LLM se ha cerrado al arrancar (¿falta VRAM? ver "
-                                "data/llm_servidor.log). Sigo solo con el clasificador; lo reintento "
-                                "en %d min.", REINTENTO_TRAS_FALLO // 60)
-                    self._cerrar_salida()
-                    self._no_reintentar_hasta = time.monotonic() + REINTENTO_TRAS_FALLO
+                if not self._esperar_carga():
                     return False
-                if self.activo():
-                    self._ultimo_uso = time.monotonic()
-                    return True
-                time.sleep(0.5)
-            log.warning("El LLM no ha terminado de cargar en %d s.", self.espera_max)
+                self._se_pasa_del_limite()   # solo para medir y dejarlo en la traza
+            return True
+
+    def _esperar_carga(self) -> bool:
+        proceso = self._proceso
+        limite = time.monotonic() + self.espera_max
+        while time.monotonic() < limite:
+            if self._proceso is not proceso:
+                return False   # lo han parado a propósito (llm off) mientras cargaba
+            if proceso is None or proceso.poll() is not None:
+                log.warning("El servidor del LLM se ha cerrado al arrancar (¿falta VRAM? ver "
+                            "data/llm_servidor.log). Sigo solo con el clasificador; lo reintento "
+                            "en %d min.", REINTENTO_TRAS_FALLO // 60)
+                self._cerrar_salida()
+                self._no_reintentar_hasta = time.monotonic() + REINTENTO_TRAS_FALLO
+                return False
+            if self.activo():
+                self._ultimo_uso = time.monotonic()
+                return True
+            time.sleep(0.5)
+        log.warning("El LLM no ha terminado de cargar en %d s.", self.espera_max)
+        return False
+
+    # --- Límite de VRAM -------------------------------------------------------------
+
+    def _plan_capas(self) -> tuple[int, int]:
+        """
+        Cuántas capas del modelo poner en la GPU para no pasar de `vram_max`, y
+        cuánta VRAM se prevé que ocupe. El resto de capas van al procesador.
+        """
+        if not self.capas_gpu:
+            return 0, 0
+        if self.capas_totales is None:
+            self.capas_totales = numero_de_capas(self.modelo)
+        tam = self.modelo.stat().st_size // 2**20
+        if self.capas_totales is None:            # no se pudo leer el modelo: sin estimación
+            return self.capas_gpu, self.vram_max
+        por_capa = tam / (self.capas_totales + 1)  # +1: la capa de salida
+        if self._capas_forzadas is not None:
+            capas = self._capas_forzadas
+        elif self.vram_max >= VRAM_BASE_MIB + tam:
+            capas = self.capas_totales + 1         # cabe entero
+        else:
+            capas = max(0, min(self.capas_totales, int((self.vram_max - VRAM_BASE_MIB) // por_capa)))
+        capas = min(capas, self.capas_gpu)
+        return capas, int(VRAM_BASE_MIB + capas * por_capa)
+
+    def _se_pasa_del_limite(self) -> bool:
+        """Mide lo que ocupa de verdad; si se pasa, decide cuántas capas quitar."""
+        gpu = leer_gpu(usar_cache=False)
+        if gpu is None or self._vram_antes is None or not self.capas_en_gpu:
             return False
+        self.vram_medida = max(0, gpu.vram_usada - self._vram_antes)
+        log.debug("LLM cargado: %s capas en la GPU, %d MiB medidos (límite %d).",
+                  self.capas_en_gpu, self.vram_medida, self.vram_max)
+        exceso = self.vram_medida - self.vram_max
+        if exceso <= TOLERANCIA_VRAM_MIB or self._capas_forzadas is not None:
+            return False
+        por_capa = max(1.0, (self.vram_medida - VRAM_BASE_MIB) / self.capas_en_gpu)
+        self._capas_forzadas = max(0, self.capas_en_gpu - int(exceso // por_capa) - 1)
+        log.info("El LLM ocupa %d MiB (límite %d): lo recargo con %d capas en la GPU.",
+                 self.vram_medida, self.vram_max, self._capas_forzadas)
+        return True
+
+    # --- Protecciones de la GPU ---------------------------------------------------
+
+    def _gpu_caliente(self) -> bool:
+        if not self.capas_gpu:
+            return False
+        gpu = leer_gpu()
+        return bool(gpu and gpu.temperatura >= self.temperatura_max)
+
+    def _motivo_para_no_cargar(self) -> str | None:
+        """Por qué no conviene cargar el modelo en la GPU ahora mismo (None si se puede)."""
+        if not self.capas_gpu:
+            return None
+        olvidar_cache()
+        gpu = leer_gpu()
+        if gpu is None:
+            return None   # sin nvidia-smi no se puede comprobar
+        _, prevista = self._plan_capas()
+        necesaria = prevista + self.margen_vram
+        if gpu.vram_libre < necesaria:
+            return (f"Solo quedan {gpu.vram_libre} MiB libres en la GPU (el LLM necesita ~{prevista} "
+                    f"+ {self.margen_vram} de margen): no lo cargo para no saturarla.")
+        if gpu.temperatura >= self.temperatura_max:
+            return f"La GPU está a {gpu.temperatura} °C (límite {self.temperatura_max}): no cargo el LLM."
+        return None
 
     def _arrancar(self) -> None:
-        modo = "GPU" if self.capas_gpu else "CPU, más lento"
+        capas, prevista = self._plan_capas()
+        self.capas_en_gpu, self.vram_medida = capas, None
+        total = (self.capas_totales or 0) + 1
+        if not capas:
+            modo = "solo procesador, más lento"
+        elif self.capas_totales and capas < total:
+            modo = f"{capas} de {total} capas en la GPU para no pasar de {self.vram_max} MiB, más lento"
+        else:
+            modo = f"GPU, ~{prevista} MiB"
         log.info("Cargando el modelo de lenguaje (%s, %s)…", self.modelo.name, modo)
+        gpu = leer_gpu(usar_cache=False) if capas else None
+        self._vram_antes = gpu.vram_usada if gpu else None
         comando = [str(self.ejecutable), "-m", str(self.modelo), "--host", "127.0.0.1",
-                   "--port", str(self.puerto), "-ngl", str(self.capas_gpu),
+                   "--port", str(self.puerto), "-ngl", str(capas),
                    "-c", str(self.contexto), "--no-webui"]
         if self.plantilla:
             comando += ["--chat-template", self.plantilla]
+        comando += self.argumentos_extra
         RUTA_DATOS.mkdir(parents=True, exist_ok=True)
         self._cerrar_salida()
         self._salida = open(RUTA_DATOS / "llm_servidor.log", "w", encoding="utf-8")
@@ -264,7 +401,7 @@ class ServidorLLM:
     def permitir_reintento(self) -> None:
         self._no_reintentar_hasta = 0.0
 
-    def completar(self, mensajes: list[dict], esquema: dict, max_tokens: int = 200) -> str:
+    def completar(self, mensajes: list[dict], esquema: dict, max_tokens: int = 700) -> str:
         self._ultimo_uso = time.monotonic()
         r = httpx.post(f"{self.url}/v1/chat/completions", timeout=60, json={
             "messages": mensajes,
@@ -286,7 +423,18 @@ def _todos_parametros(skill: Skill) -> dict[str, str]:
 
 
 def esquema_ordenes(registro: dict[str, Skill]) -> dict:
-    """JSON Schema: una opción por skill (con sus parámetros exactos) + "ninguna"."""
+    """JSON Schema de la respuesta: {"pasos": [ {skill, parametros}, ... ]} (1 a MAX_PASOS)."""
+    return {
+        "type": "object",
+        "properties": {"pasos": {"type": "array", "items": {"anyOf": _opciones_paso(registro)},
+                                 "minItems": 1, "maxItems": MAX_PASOS}},
+        "required": ["pasos"],
+        "additionalProperties": False,
+    }
+
+
+def _opciones_paso(registro: dict[str, Skill]) -> list[dict]:
+    """Una opción por skill (con sus parámetros exactos) + "ninguna"."""
     opciones = []
     for nombre, skill in registro.items():
         props = {p: {"type": "string"} for p in _todos_parametros(skill)}
@@ -306,7 +454,7 @@ def esquema_ordenes(registro: dict[str, Skill]) -> dict:
         "required": ["skill", "parametros"],
         "additionalProperties": False,
     })
-    return {"anyOf": opciones}
+    return opciones
 
 
 def describir_catalogo(registro: dict[str, Skill]) -> str:
@@ -323,14 +471,26 @@ def cargar_ejemplos(ruta: Path = RUTA_EJEMPLOS) -> list[dict]:
     return json.loads(ruta.read_text(encoding="utf-8"))
 
 
-def construir_mensajes(texto: str, registro: dict[str, Skill], ejemplos: list[dict]) -> list[dict]:
+def pasos_de(ejemplo: dict) -> list[dict]:
+    """Un ejemplo puede ser de un paso ({"skill", "parametros"}) o de varios ({"pasos": [...]})."""
+    if "pasos" in ejemplo:
+        return ejemplo["pasos"]
+    return [{"skill": ejemplo["skill"], "parametros": ejemplo.get("parametros", {})}]
+
+
+def construir_mensajes(texto: str, registro: dict[str, Skill], ejemplos: list[dict],
+                       contexto: str = "") -> list[dict]:
     mensajes = [{"role": "system", "content": INSTRUCCIONES + describir_catalogo(registro)}]
     for ej in ejemplos:
-        if ej["skill"] != NINGUNA and ej["skill"] not in registro:
+        pasos = pasos_de(ej)
+        if any(p["skill"] != NINGUNA and p["skill"] not in registro for p in pasos):
             continue  # ejemplo de una skill que ya no existe
         mensajes.append({"role": "user", "content": ej["frase"]})
-        mensajes.append({"role": "assistant", "content": json.dumps(
-            {"skill": ej["skill"], "parametros": ej["parametros"]}, ensure_ascii=False)})
+        mensajes.append({"role": "assistant", "content": json.dumps({"pasos": pasos}, ensure_ascii=False)})
+    if contexto:
+        # Al final, justo antes de la orden: así el principio del prompt (instrucciones,
+        # catálogo y ejemplos) no cambia y llama.cpp reutiliza lo ya calculado.
+        mensajes.append({"role": "system", "content": contexto})
     mensajes.append({"role": "user", "content": texto})
     return mensajes
 
@@ -391,25 +551,69 @@ class ResultadoLLM:
     propuesta: str | None = None
     # False si no se pudo consultar al LLM: el router usa entonces el clasificador.
     disponible: bool = True
+    # Órdenes de varios pasos: [(skill, params), ...]. Vacío si es un solo paso
+    # (entonces está en skill/params, como siempre).
+    pasos: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
 
 
 class InterpreteLLM:
     def __init__(self, registro: dict[str, Skill], servidor: ServidorLLM | None = None,
-                 ejemplos: list[dict] | None = None):
+                 ejemplos: list[dict] | None = None, atajos: dict[str, dict] | None = None):
         self.registro = registro
         self.servidor = servidor or ServidorLLM()
         self.ejemplos = cargar_ejemplos() if ejemplos is None else ejemplos
+        self.atajos = cargar_atajos() if atajos is None else atajos
         self.esquema = esquema_ordenes(registro)
 
     def disponible(self) -> bool:
         return self.servidor.asegurar()
 
-    def interpretar(self, texto: str) -> ResultadoLLM:
+    def _contexto(self, texto: str, contexto: dict | None) -> tuple[str, set[str]]:
+        """
+        Texto de contexto para el prompt (última app y atajos que vienen al caso)
+        y los valores "conocidos" que el LLM puede usar aunque no estén en la
+        frase: la última app y las teclas de esos atajos.
+        """
+        ultima = (contexto or {}).get("ultima_aplicacion")
+        partes, conocidos = [], set()
+        if ultima:
+            partes.append(f"Última aplicación usada: {ultima}.")
+            conocidos.add(normalizar(ultima))
+        bloque = describir_atajos(texto, ultima, self.atajos)
+        if bloque:
+            partes.append(bloque)
+            for app in apps_mencionadas(texto, self.atajos) + [app_conocida(ultima, self.atajos)]:
+                if app:
+                    conocidos.add(normalizar(app))
+                    conocidos.update(normalizar(t) for t in self.atajos[app]["atajos"].values())
+        return "\n".join(partes), conocidos
+
+    def interpretar(self, texto: str, contexto: dict | None = None) -> ResultadoLLM:
         if not self.servidor.asegurar():
             return ResultadoLLM(None, motivo=NO_DISPONIBLE, disponible=False)
+        texto_contexto, conocidos = self._contexto(texto, contexto)
+        if texto_contexto:
+            log.debug("Contexto para el LLM:\n%s", texto_contexto)
+        mensajes = construir_mensajes(texto, self.registro, self.ejemplos, texto_contexto)
+        resultado = self._consultar(mensajes, texto, conocidos)
+        # Si la respuesta no es válida (una tecla que no existe, un valor que no está
+        # en la frase...), se le enseña el error y se le deja corregirla UNA vez.
+        if (resultado.skill is None and resultado.disponible and resultado.crudo
+                and resultado.motivo not in (NO_SE_HACER, NO_DISPONIBLE)):
+            log.debug("LLM: respuesta no válida (%s); le pido que la corrija.", resultado.motivo)
+            mensajes += [{"role": "assistant", "content": resultado.crudo},
+                         {"role": "user", "content": f"Esa respuesta no es válida: {resultado.motivo} "
+                                                     "Corrígela para la misma orden."}]
+            segundo = self._consultar(mensajes, texto, conocidos)
+            if segundo.skill is not None or not segundo.disponible:
+                return segundo
+        return resultado
+
+    def _consultar(self, mensajes: list[dict], texto: str, conocidos: set[str]) -> ResultadoLLM:
+        t0 = time.monotonic()
         try:
-            crudo = self.servidor.completar(construir_mensajes(texto, self.registro, self.ejemplos),
-                                            self.esquema)
+            crudo = self.servidor.completar(mensajes, self.esquema)
+            log.debug("Respuesta del LLM (%.0f ms): %s", (time.monotonic() - t0) * 1000, crudo)
         except httpx.HTTPError as e:
             # El servidor se ha caído o se ha descargado justo ahora.
             log.warning("No pude consultar al LLM (%s).", e)
@@ -422,20 +626,49 @@ class InterpreteLLM:
             return ResultadoLLM(None, motivo=f"El LLM no ha devuelto una respuesta válida ({e}).", crudo=crudo)
         if not isinstance(datos, dict):
             return ResultadoLLM(None, motivo="El LLM no ha devuelto una respuesta válida.", crudo=crudo)
-        return self.validar(datos, texto, crudo)
+        return self.validar(datos, texto, crudo, conocidos)
 
-    def validar(self, datos: dict, texto: str, crudo: str = "") -> ResultadoLLM:
+    def validar(self, datos: dict, texto: str, crudo: str = "",
+                conocidos: set[str] | frozenset[str] = frozenset()) -> ResultadoLLM:
+        """Valida la respuesta: {"pasos": [...]} (o un solo paso {"skill", "parametros"})."""
+        pasos = datos.get("pasos") if isinstance(datos.get("pasos"), list) else [datos]
+        if not pasos:
+            return ResultadoLLM(None, motivo="El LLM no ha devuelto ningún paso.", crudo=crudo)
+        resultados = [self._validar_paso(p if isinstance(p, dict) else {}, texto, conocidos)
+                      for p in pasos[:MAX_PASOS]]
+        if len(resultados) == 1:
+            resultados[0].crudo = crudo
+            return resultados[0]
+
+        # Varios pasos: o se pueden hacer todos o no se hace ninguno.
+        for i, r in enumerate(resultados, 1):
+            if r.skill is None:
+                motivo = ("Hay una parte de la orden que no sé hacer todavía."
+                          if r.motivo == NO_SE_HACER else f"Paso {i}: {r.motivo}")
+                return ResultadoLLM(None, motivo=motivo, crudo=crudo)
+        return ResultadoLLM(resultados[0].skill, resultados[0].params, crudo=crudo,
+                            pasos=[(r.skill, r.params) for r in resultados])
+
+    def _validar_paso(self, datos: dict, texto: str, conocidos) -> ResultadoLLM:
         skill = datos.get("skill")
         if skill == NINGUNA:
-            return ResultadoLLM(None, motivo="No sé hacer eso todavía.", crudo=crudo)
+            return ResultadoLLM(None, motivo=NO_SE_HACER)
         if skill not in self.registro:
-            return ResultadoLLM(None, motivo=f"El LLM propuso una skill desconocida: {skill!r}.", crudo=crudo)
+            return ResultadoLLM(None, motivo=f"El LLM propuso una skill desconocida: {skill!r}.")
         definicion = self.registro[skill]
         permitidos = _todos_parametros(definicion)
         params, no_anclados = {}, set()
+        sin_anclar = getattr(definicion, "parametros_sin_anclar", frozenset())
         for clave, valor in (datos.get("parametros") or {}).items():
+            if clave in sin_anclar and isinstance(valor, str) and valor.strip():
+                params[clave] = valor.strip()   # lo valida la skill (comprobar_valores)
+                continue
             if clave in permitidos and isinstance(valor, str) and valor.strip():
                 params[clave], anclado = anclar(valor, texto)
+                if not anclado and normalizar(valor) in conocidos:
+                    # No está en la frase, pero es un valor del contexto (la última
+                    # app usada, un atajo conocido como 'control t'): es válido.
+                    params[clave], anclado = valor.strip(), True
                 if not anclado:
                     no_anclados.add(clave)
 
@@ -455,5 +688,9 @@ class InterpreteLLM:
         if inventados:
             return ResultadoLLM(None, params, motivo=(f"No he entendido bien la orden (¿{skill}? "
                                 f"'{params[inventados[0]]}' no aparece en lo que has dicho)."),
-                                crudo=crudo, no_anclados=no_anclados, propuesta=skill)
-        return ResultadoLLM(skill, params, crudo=crudo, no_anclados=no_anclados)
+                                no_anclados=no_anclados, propuesta=skill)
+        error = definicion.comprobar_valores(params)
+        if error:
+            return ResultadoLLM(None, params, motivo=f"{skill}: {error}", no_anclados=no_anclados,
+                                propuesta=skill)
+        return ResultadoLLM(skill, params, no_anclados=no_anclados)

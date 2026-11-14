@@ -44,6 +44,7 @@ Lo importante para enseñarle cosas: **hay tres "palancas" distintas**.
 | Catálogo de skills (descripción y parámetros) | Lo que el LLM sabe que existe | `catalogo.json` o la clase Python | No |
 | Dataset del clasificador | Que tus frases habituales vayan rápidas y sin LLM | `add_phrases.py` | Sí: `python .\nlu\training.py` (segundos) |
 | Ejemplos del LLM | Casos que el LLM confunde | `core/llm_ejemplos.json` | No |
+| Atajos por aplicación | Que haga cosas dentro de una app sin skill propia (nueva pestaña, ir a un canal...) | `core/atajos_apps.json` | No |
 
 El LLM (Qwen3) **no se reentrena** de momento: se le "enseña" con el
 catálogo y los ejemplos. Ajustar sus pesos con tus episodios (LoRA) es la
@@ -77,7 +78,11 @@ python .\dispatcher.py --sin-llm  # solo el clasificador: no usa la GPU
 
 ## 3. Cuando una frase no se entiende o se entiende mal
 
-1. **Mira qué pasó** en el último episodio:
+1. **Mira qué pasó.** La traza completa de la última orden está en
+   `data/ultima_orden.log`: qué dijo el clasificador y por qué dudó, qué
+   respondió el LLM, el plan, cada paso con su duración y, si algo falló,
+   el error con el archivo y la línea del código. El historial de todas
+   las órdenes está en el último episodio:
 
    ```powershell
    Get-Content data\episodios.jsonl -Tail 5
@@ -145,6 +150,40 @@ python .\recorder\build_templates.py
    reentrena (sección 6).
 
 ---
+
+## 4b. Enseñarle atajos de una aplicación (sin programar)
+
+Muchas acciones dentro de una app no necesitan una skill: basta con que el
+LLM sepa sus atajos y los combine con `pulsar_teclas` y `escribir_texto`
+en varios pasos. "busca el horario del mercadona en opera" se convierte en
+`control l` → escribir → `enter`.
+
+Añade la app (o atajos nuevos) en `core/atajos_apps.json`:
+
+```json
+"Microsoft Word": {
+  "nombres": ["word"],
+  "atajos": {
+    "guardar": "control g",
+    "negrita": "control n",
+    "nuevo documento": "control u"
+  }
+}
+```
+
+- `nombres`: cómo la puedes llamar en las órdenes.
+- La descripción de cada atajo es lo que lee el LLM: si un atajo va
+  seguido de algo (escribir y Enter), dilo ("ir al buscador: después
+  escribir y pulsar enter").
+- Las teclas con los nombres que entiende `pulsar_teclas` (`control`,
+  `shift`, `alt`, `enter`, `tab`, flechas, `f1`…`f12`, letras).
+- Al LLM solo se le pasan los atajos de las apps que nombras y de la última
+  que has usado, para no alargar el prompt.
+
+**Órdenes de varios pasos:** "abre la calculadora, escribe 25*4 y pulsa
+enter" se ejecuta paso a paso. Si algún paso tiene consecuencias (pulsar
+teclas, cerrar...), primero te enseña el plan completo y lo confirmas una
+vez. Si un paso falla, se para ahí y te dice cuál.
 
 ## 5. Crear una skill en Python
 
@@ -288,8 +327,8 @@ python -m evaluacion.evaluar --ordenes evaluacion\ordenes_control.json   # 30 fr
 
 ## 9. Lo que todavía no hace
 
-- **Varias acciones en una orden** ("abre Steam y lanza Hades"): cada
-  orden es una skill (el planificador sí añade los pasos previos).
+- **Leer la pantalla** ("¿hay alguien en el canal?", "¿qué pone?"): fase 5.
+- **Tareas programadas** ("a las 17:30"): fase 4, pendiente.
 - **Contexto entre órdenes** ("abre WhatsApp" → "escríbele a mamá"): fase 4.
 - **Plantillas frágiles:** las grabaciones repiten clics por coordenadas;
   si la ventana cambia de sitio o de tamaño pueden fallar (fase 5: UI Automation).

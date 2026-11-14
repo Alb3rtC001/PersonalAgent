@@ -188,6 +188,7 @@ tests/
 | Si el LLM no arrancaba (sin VRAM), cada orden esperaba otro intento | Reintento cada 5 min; sin archivos, no se reintenta | 3 ✅ |
 | Una línea a medio escribir en `episodios.jsonl` rompía `/episodios` | Se ignora | 3 ✅ |
 | `cliente.py` se cerraba con un traceback si el servidor caía o respondía un error no JSON | Errores capturados y mostrados | 3 ✅ |
+| La lectura de la GPU fallaba siempre en este PC (el driver da la temperatura con decimales) y las protecciones de VRAM y temperatura no se aplicaban | Se leen los números con decimales | 4 ✅ |
 | Sin forma de desactivar el LLM sin editar código | `--sin-llm`, `llm off/on`, `POST /llm`, `PERSONALAGENT_LLM`, descarga por inactividad | 3 ✅ |
 | Al dar el foco a una ventana se perdía la primera tecla escrita después (el truco de pulsar ALT activaba el menú de la app) | `AttachThreadInput` + movimiento de ratón nulo; sin teclas falsas | 3 ✅ |
 | Las apps de la Store minimizadas dejan una ventana interna "camuflada" (cloaked) que el agente tomaba por visible: no se restauraban ni recibían el foco | Las ventanas camufladas se ignoran | 3 ✅ |
@@ -224,12 +225,32 @@ Cada fase termina con algo que funciona de punta a punta.
   - ✅ Comparado con Qwen3-8B: Qwen gana en acierto, velocidad y memoria y pasa a ser el modelo por defecto.
   - ⏳ Sustituir el clasificador bag-of-words por un transformer pequeño
     propio que también extraiga los parámetros.
-  - ⏳ Planes de varias skills en una sola orden ("abre Steam y lanza X").
-- **Fase 4 — Memoria y contexto.** Contexto de sesión, verificador de éxito
-  general, recuperación de episodios parecidos como ejemplos.
-- **Fase 5 — Acciones robustas.** UI Automation; grabador v2 que guarda el
-  control pulsado (nombre, tipo) en vez de coordenadas; campo destino de
-  `escribir_texto` (§11); OCR solo si no hay otra opción.
+  - ✅ Órdenes de varios pasos: pasan a la fase 4 (ver abajo).
+- **Fase 4 — Memoria, contexto y órdenes compuestas (en curso).**
+  - ✅ Órdenes de varios pasos: el LLM devuelve `{"pasos": [...]}` (máx. 12);
+    si algún paso tiene consecuencias se confirma el plan entero una vez; se
+    ejecutan en orden y paran en el primer fallo; un episodio por orden.
+  - ✅ Atajos de teclado por aplicación (`core/atajos_apps.json`): el LLM los
+    usa con `pulsar_teclas` ("busca X en opera" = control l + escribir + enter).
+  - ✅ Contexto "última aplicación" (también dentro de un plan).
+  - ✅ Autocorrección: si la respuesta del LLM no es válida, se le enseña el
+    error y la corrige una vez.
+  - ✅ Protección de la GPU (§12).
+  - ⏳ Tareas programadas ("dentro de 5 min", "a las 17:30"), confirmadas
+    al programarlas.
+  - ⏳ Memoria en SQLite + episodios parecidos como ejemplos del LLM (sin GPU:
+    similitud de texto en CPU).
+  - ⏳ Steam por su protocolo (`steam://rungameid/<id>`) y sus archivos
+    (`appmanifest_*.acf`: juegos instalados y actualizaciones pendientes).
+- **Fase 5 — Grabadora semántica + LLM (decidido).** UI Automation (CPU,
+  sin GPU): la grabadora guarda el control pulsado (tipo, nombre,
+  AutomationId) y los atajos usados, no coordenadas; con una sola
+  demostración el LLM la convierte en una skill con parámetros; al
+  reproducir se busca cada control por su nombre y se verifica leyéndolo.
+  Lectura de pantalla para preguntas ("¿hay alguien en el canal?", "¿qué
+  pone?"). Campo destino de `escribir_texto` (§11). Apps nuevas: el LLM
+  propone un plan a partir de la lista de controles de la ventana, se
+  confirma y se guarda si funciona; si no, "hazlo tú y lo grabo".
 - **Fase 6 — Aprendizaje continuo.** Episodios → dataset → reentreno del
   clasificador y LoRA del LLM; propuesta automática de skills compuestas a
   partir de secuencias repetidas.
@@ -248,9 +269,9 @@ Cada fase termina con algo que funciona de punta a punta.
 - **Python 3.14:** algunas librerías (p. ej. CUDA para PyTorch) pueden tardar
   en tener versión compatible. Si hace falta GPU para entrenar, valorar un
   entorno separado con Python 3.12.
-- **VRAM:** el LLM ocupa ~5,4 GB de 8. Si otra cosa (un juego) necesita la
-  GPU: `llm off`, `--sin-llm` o esperar a que se descargue solo por
-  inactividad. Sin LLM el agente sigue funcionando con el clasificador.
+- **VRAM:** el LLM ocupa ~4,8 GB de 8 (§12). Si otra cosa (un juego)
+  necesita la GPU: `llm off`, `--sin-llm` o esperar a que se descargue solo
+  por inactividad. Sin LLM el agente sigue funcionando con el clasificador.
 - **Seguridad de la API:** escucha solo en `127.0.0.1` y exige token. Para
   el móvil habrá que abrirla a la red local (`0.0.0.0`) y, como el token
   viaja en claro por HTTP, valorar HTTPS con certificado autofirmado.
@@ -497,3 +518,31 @@ tamaño y posición) a partir de tus elecciones guardadas, para acertar en
 apps nuevas parecidas (p. ej., el cuadro de mensaje de cualquier app de
 chat). Sería un clasificador pequeño como el de `nlu/`, entrenado con
 `data/campos.json`.
+
+---
+
+## 12. Uso de la GPU (límite: no pasar del uso actual)
+
+La RTX 3060 Ti (8 GB) es de uso diario: el agente no debe saturarla.
+
+| Medida | Efecto |
+| ------ | ------ |
+| Modelo cuantizado a 4 bits (Q4_K_M) | ~4,7 GB de pesos en vez de ~16 GB |
+| Una conversación a la vez (`-np 1`), flash attention, caché KV en 8 bits (`LLM_ARGUMENTOS_EXTRA`) | ~4,8 GB en total (antes ~5,3), misma velocidad y respuestas (medido) |
+| `LLM_VRAM_MAX_MIB` (5.200) | Límite de VRAM del LLM: si no cabe entero, solo van a la GPU las capas que quepan (leídas del GGUF, ~116 MiB cada una) y el resto al procesador. Tras cargar se mide y, si se pasa, se recarga con menos capas |
+| `LLM_MARGEN_VRAM_MIB` (500) | Si no queda libre lo que ocupará el LLM + este margen (p. ej. jugando), no se carga: sigue el clasificador y lo reintenta en 5 min |
+| `LLM_TEMPERATURA_MAX` (83 °C) | Si la GPU pasa de ahí, no se carga o se descarga |
+| `LLM_DESCARGAR_TRAS` (15 min) | Sin uso, se descarga y la VRAM queda libre |
+| `llm off`, `--sin-llm`, `POST /llm` | Descargarlo a mano en cualquier momento |
+| Job Object | Si el agente muere de golpe, el LLM muere con él |
+
+Sobre "quemar la GPU": el LLM trabaja a ráfagas de menos de un segundo
+por orden (no como un juego, que la tiene al 100 % sin parar), y la propia
+tarjeta baja su velocidad si se calienta. Si aun así quieres un margen
+extra, se puede limitar su consumo con `nvidia-smi -pl <vatios>` (lo tienes
+que hacer tú, como administrador; el agente no cambia ajustes del sistema).
+
+Las piezas nuevas siguen esta regla: la grabadora semántica y la lectura de
+pantalla (UI Automation) y la memoria con episodios parecidos (similitud de
+texto) van en el procesador, sin GPU. Ningún modelo nuevo se cargará en la
+GPU a la vez que el LLM.

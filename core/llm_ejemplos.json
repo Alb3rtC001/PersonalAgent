@@ -18,7 +18,23 @@
   {"frase": "dale a intro", "skill": "pulsar_teclas", "parametros": {"teclas": "intro"}},
   {"frase": "pulsa control s en el bloc de notas", "skill": "pulsar_teclas", "parametros": {"teclas": "control s", "aplicacion": "bloc de notas"}},
   {"frase": "presiona tab dos veces", "skill": "pulsar_teclas", "parametros": {"teclas": "tab dos veces"}},
-  {"frase": "maximiza la ventana de chrome","skill": "ninguna", "parametros": {}},
+  {"frase": "abre el bloc de notas y escribe la lista de la compra", "pasos": [
+    {"skill": "abrir_aplicacion", "parametros": {"aplicacion": "bloc de notas"}},
+    {"skill": "escribir_texto", "parametros": {"texto": "la lista de la compra"}}]},
+  {"frase": "abre una pestaña nueva en chrome y busca el tiempo en madrid", "pasos": [
+    {"skill": "pulsar_teclas", "parametros": {"teclas": "control t", "aplicacion": "chrome"}},
+    {"skill": "escribir_texto", "parametros": {"texto": "el tiempo en madrid"}},
+    {"skill": "pulsar_teclas", "parametros": {"teclas": "enter"}}]},
+  {"frase": "busca en chrome recetas de pasta", "pasos": [
+    {"skill": "pulsar_teclas", "parametros": {"teclas": "control l", "aplicacion": "chrome"}},
+    {"skill": "escribir_texto", "parametros": {"texto": "recetas de pasta"}},
+    {"skill": "pulsar_teclas", "parametros": {"teclas": "enter"}}]},
+  {"frase": "en discord ve al canal general", "pasos": [
+    {"skill": "pulsar_teclas", "parametros": {"teclas": "control k", "aplicacion": "discord"}},
+    {"skill": "escribir_texto", "parametros": {"texto": "general"}},
+    {"skill": "pulsar_teclas", "parametros": {"teclas": "enter"}}]},
+  {"frase": "abre steam y dime si hay actualizaciones", "skill": "ninguna", "parametros": {}},
+  {"frase": "maximiza la ventana de chrome", "skill": "ninguna", "parametros": {}},
   {"frase": "minimiza spotify", "skill": "ninguna", "parametros": {}},
   {"frase": "sube el brillo", "skill": "ninguna", "parametros": {}},
   {"frase": "envía un correo a mi jefe", "skill": "ninguna", "parametros": {}},

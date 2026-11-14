@@ -68,6 +68,24 @@ LLM_PUERTO = 8766            # solo en 127.0.0.1
 LLM_CAPAS_GPU = 99           # 99 = todo el modelo en la GPU; 0 = solo CPU (mucho más lento)
 LLM_CONTEXTO = 4096
 LLM_ESPERA_ARRANQUE = 120    # segundos máximos para cargar el modelo
+# Opciones de memoria de llama-server (medido con Qwen3-8B en la RTX 3060 Ti):
+# una conversación a la vez (-np 1), flash attention y caché KV en 8 bits.
+# Ocupa ~4,8 GB en vez de ~5,3 GB, con la misma velocidad y respuestas.
+LLM_ARGUMENTOS_EXTRA = ["-np", "1", "-fa", "on", "-ctk", "q8_0", "-ctv", "q8_0"]
+# LÍMITE DE VRAM del LLM, en MiB. Si el modelo entero no cabe, se ponen en la
+# GPU solo las capas que quepan y el resto va al procesador: ocupa menos pero
+# tarda más. Medido con Qwen3-8B en la RTX 3060 Ti (~116 MiB por capa):
+#   5200 -> modelo entero (~5,0 GB)  ~0,5 s por orden
+#   4200 -> 30 de 36 capas           ~1,7 s
+#   3500 -> 24 capas                 ~2,6 s
+#   2100 -> 12 capas                 ~5 s
+#   0    -> solo procesador          ~7 s  (igual que LLM_CAPAS_GPU = 0)
+LLM_VRAM_MAX_MIB = 5200
+# Además de lo que vaya a ocupar el LLM, deja al menos estos MiB libres en la
+# GPU: si no hay sitio (p. ej. mientras juegas), no se carga.
+LLM_MARGEN_VRAM_MIB = 500
+# No usar el LLM (y descargarlo) si la GPU pasa de esta temperatura en °C.
+LLM_TEMPERATURA_MAX = 83
 # Si no se usa en este tiempo, el modelo se descarga y libera la VRAM; se
 # vuelve a cargar solo (unos 4 s) la próxima vez que haga falta. 0 = nunca.
 LLM_DESCARGAR_TRAS = 15 * 60
@@ -86,6 +104,9 @@ elif _modo_llm in ("1", "on", "si", "sí", "true", "gpu"):
 RUTA_DATOS = Path(__file__).parent / "data"
 RUTA_NOTAS = RUTA_DATOS / "notas"                  # notas creadas por crear_nota
 RUTA_EPISODIOS = RUTA_DATOS / "episodios.jsonl"    # historial de órdenes ejecutadas
+# Traza detallada (paso a paso, con errores y líneas de código) de la ÚLTIMA
+# orden; cada orden nueva la sobrescribe. Para saber qué pasó si algo falla.
+RUTA_TRAZA = RUTA_DATOS / "ultima_orden.log"
 
 # API HTTP local (python -m api)
 # 127.0.0.1 = solo este PC. Para conectar el móvil por la red de casa: "0.0.0.0".

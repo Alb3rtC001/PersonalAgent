@@ -15,10 +15,10 @@ En marcha: 'llm off' / 'llm on' / 'llm'.
 from __future__ import annotations
 
 import argparse
-import logging
 
 from config import LLM_ACTIVO
 from core.agente import Agente, limpiar_texto
+from core.traza import configurar_logs
 
 
 def pedir(pregunta: str) -> str:
@@ -31,11 +31,19 @@ def confirmar(accion: str) -> bool:
 
 
 def describir_llm(estado: dict) -> str:
+    gpu = ""
+    if estado.get("vram_libre_mib") is not None:
+        gpu = f" GPU: {estado['vram_libre_mib']} MiB libres, {estado['temperatura_gpu']} °C."
     if not estado["activo"]:
-        return "LLM desactivado: solo clasificador, sin usar la GPU."
+        return "LLM desactivado: solo clasificador, sin usar la GPU." + gpu
     carga = "cargado" if estado["cargado"] else "se cargará cuando haga falta"
     donde = "GPU" if estado["gpu"] else "CPU"
-    return f"LLM activo ({estado['modelo']}, {donde}, {carga})."
+    if estado["cargado"] and estado.get("capas_en_gpu") is not None and estado.get("capas_totales"):
+        donde = f"{estado['capas_en_gpu']} de {estado['capas_totales']} capas en la GPU"
+        if estado.get("vram_llm_mib"):
+            donde += f", {estado['vram_llm_mib']} MiB"
+    limite = f", límite {estado['vram_max_mib']} MiB" if estado.get("vram_max_mib") else ""
+    return f"LLM activo ({estado['modelo']}, {donde}{limite}, {carga})." + gpu
 
 
 def comando_llm(agente: Agente, texto: str) -> bool:
@@ -59,9 +67,9 @@ def main() -> None:
                         help="usar el LLM sin GPU (mucho más lento)")
     args = parser.parse_args()
 
-    # Avisos de progreso de las skills ("Esperando a que aparezca la ventana…").
-    logging.basicConfig(format="  … %(message)s")
-    logging.getLogger("personalagent").setLevel(logging.INFO)
+    # Consola: avisos de progreso ("Esperando a que aparezca la ventana…").
+    # data/ultima_orden.log: traza completa de la última orden.
+    configurar_logs()
 
     usar_llm = LLM_ACTIVO and not args.sin_llm or args.llm_cpu
     agente = Agente(usar_llm=usar_llm, llm_cpu=args.llm_cpu)

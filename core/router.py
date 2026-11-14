@@ -16,6 +16,7 @@ Si el LLM no está disponible o está desactivado (activar_llm(False),
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -41,6 +42,13 @@ class Interpretacion:
     params: dict[str, Any] = field(default_factory=dict)
     motivo_rechazo: str | None = None
     origen: str = "clasificador"
+    # Órdenes de varias acciones: [(skill, params), ...] en orden (skill = "varios_pasos").
+    pasos: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
+
+
+VARIOS_PASOS = "varios_pasos"
+# " y ", " luego ", " después ", ", y luego"...: posible orden de varias acciones.
+CONJUNCION = re.compile(r"\s(y|e|luego|despues|y luego|y despues|tras eso|a continuacion)\s|,")
 
 
 class ClasificadorBow:
@@ -102,12 +110,20 @@ class Router:
             self.llm.servidor.parar()
 
     def estado_llm(self) -> dict[str, Any]:
+        from core.gpu import leer_gpu
         servidor = getattr(self.llm, "servidor", None) if self.llm is not None else None
+        gpu = leer_gpu()
         return {
             "activo": self.usar_llm,
             "cargado": bool(servidor is not None and hasattr(servidor, "activo") and servidor.activo()),
             "modelo": getattr(getattr(servidor, "modelo", None), "name", None),
             "gpu": bool(getattr(servidor, "capas_gpu", 0)) if servidor is not None else None,
+            "vram_libre_mib": gpu.vram_libre if gpu else None,
+            "temperatura_gpu": gpu.temperatura if gpu else None,
+            "vram_max_mib": getattr(servidor, "vram_max", None),
+            "vram_llm_mib": getattr(servidor, "vram_medida", None),
+            "capas_en_gpu": getattr(servidor, "capas_en_gpu", None),
+            "capas_totales": (servidor.capas_totales + 1) if getattr(servidor, "capas_totales", None) else None,
         }
 
     def precargar(self) -> None:
@@ -125,6 +141,8 @@ class Router:
         """Interpretación del clasificador y si conviene consultar al LLM."""
         intencion, confianza, desconocidas = self.clasificador(texto)
         interp = Interpretacion(texto, intencion, confianza)
+        log.debug("Clasificador: intención=%s confianza=%.2f palabras desconocidas=%s",
+                  intencion, confianza, desconocidas or "-")
 
         if intencion == "ninguna":
             interp.motivo_rechazo = f"No he entendido esa orden (confianza={confianza:.2f})."
@@ -150,20 +168,40 @@ class Router:
             # Skills con varios parámetros que slots.py no sabe separar
             # ("escribe hola en discord" → texto + aplicación).
             varios = getattr(self.registro[intencion], "interpretar_con_llm", False)
-            return interp, sin_disparador or bool(fuera) or dentro or varios
+            # Puede ser una orden de varias acciones ("abre steam y lanza hades"):
+            # el clasificador solo sabe de una.
+            compuesta = bool(CONJUNCION.search(f" {normalizar(texto)} "))
+            motivos = [m for m, si in [("sin frase disparadora", sin_disparador),
+                                       (f"palabras nuevas fuera del valor {fuera}", fuera),
+                                       ("palabras nuevas en el valor", dentro),
+                                       ("skill de varios parámetros", varios),
+                                       ("posible orden de varias acciones", compuesta)] if si]
+            log.debug("Clasificador: %s %s → %s", intencion, interp.params,
+                      f"dudosa ({', '.join(motivos)})" if motivos else "segura")
+            return interp, bool(motivos)
         return interp, True
 
-    def interpretar(self, texto: str) -> Interpretacion:
+    def interpretar(self, texto: str, contexto: dict[str, Any] | None = None) -> Interpretacion:
+        """`contexto`: datos de la sesión, p. ej. {"ultima_aplicacion": "Google Chrome"}."""
         interp, dudosa = self.interpretar_clasificador(texto)
-        if not dudosa or not self.usar_llm:
+        if not dudosa:
+            return interp
+        if not self.usar_llm:
+            log.debug("El LLM está desactivado: me quedo con el clasificador.")
             return interp
         if self.llm is None:
             self.llm = self._crear_llm()
 
-        r = self.llm.interpretar(texto)
+        log.debug("Consulto al LLM.")
+        r = self.llm.interpretar(texto, contexto=contexto)
         if not getattr(r, "disponible", True):
+            log.debug("El LLM no está disponible: me quedo con el clasificador.")
             return interp  # sin LLM: lo que dijo el clasificador
-        log.debug("LLM: %s", r.crudo)
+        log.debug("LLM: skill=%s params=%s pasos=%s motivo=%s", r.skill, r.params,
+                  getattr(r, "pasos", None) or "-", r.motivo)
+        if getattr(r, "pasos", None):
+            return Interpretacion(texto, "varios_pasos", interp.confianza, skill=VARIOS_PASOS,
+                                  pasos=list(r.pasos), origen="llm")
         # Si ambos coinciden en la skill y el LLM reformuló un valor que no está
         # en la frase ("tareas administrativas"), vale más el del clasificador,
         # que siempre es un trozo literal de lo que dijo el usuario. Si el

@@ -28,7 +28,7 @@ REGISTRO = {"abrir_aplicacion": AbrirAplicacion(), "crear_nota": CrearNota()}
 # --- Esquema y prompt ---------------------------------------------------
 
 def test_esquema_una_opcion_por_skill_mas_ninguna():
-    opciones = esquema_ordenes(REGISTRO)["anyOf"]
+    opciones = esquema_ordenes(REGISTRO)["properties"]["pasos"]["items"]["anyOf"]
     skills = [o["properties"]["skill"]["const"] for o in opciones]
     assert skills == ["abrir_aplicacion", "crear_nota", NINGUNA]
     params_nota = opciones[1]["properties"]["parametros"]
@@ -85,7 +85,7 @@ class LLMFalso:
         self.respuesta = respuesta
         self.llamadas = 0
 
-    def interpretar(self, texto):
+    def interpretar(self, texto, contexto=None):
         self.llamadas += 1
         return self.respuesta
 
