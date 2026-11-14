@@ -32,6 +32,10 @@ ESPERA_MAX_CIERRE = 10
 # Nunca se termina si queda alguna ventana visible (p. ej. "¿Guardar cambios?").
 CERRAR_TERMINA_BANDEJA = True
 
+# Segundos que el agente recuerda "la última aplicación usada" (para "escribe
+# 2+2" o "pulsa enter" sin decir dónde, después de "abre la calculadora").
+CADUCIDAD_CONTEXTO = 15 * 60
+
 # Nombres alternativos para abrir_aplicacion y cerrar_aplicacion: lo que dices -> nombre en el menú Inicio.
 # Las claves van en minúsculas y sin tildes.
 ALIAS_APLICACIONES = {

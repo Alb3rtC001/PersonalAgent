@@ -14,12 +14,15 @@ from core.skills.cerrar_aplicacion import CerrarAplicacion
 from core.skills.crear_nota import CrearNota
 from core.skills.plantilla import cargar_skills_plantilla
 from core.skills.restaurar_ventana import RestaurarVentana
+from core.skills.teclado import EscribirTexto, PulsarTeclas
 
 SKILLS_NATIVAS: list[Skill] = [
     CrearNota(),
     AbrirAplicacion(),
     CerrarAplicacion(),
     RestaurarVentana(),
+    EscribirTexto(),
+    PulsarTeclas(),
 ]
 
 

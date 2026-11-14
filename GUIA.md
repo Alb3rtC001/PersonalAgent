@@ -13,11 +13,17 @@ Esta guía es la parte práctica. El diseño y los motivos están en
                  milisegundos, entrenado con         previos    ejecutar,     abrir_aplicacion
                  tus frases                          (abrir     verificar,    cerrar_aplicacion
               2. si duda: LLM local (Qwen3-8B)       Steam      replanificar, restaurar_ventana
-                 ~0,4 s, solo puede elegir skills    antes...)  registrar     + plantillas grabadas
-                 del catálogo                                       │          (ejecutar_en_steam)
-                                                                    ▼
+                 ~0,4 s, solo puede elegir skills    antes...)  registrar     escribir_texto
+                 del catálogo                                       │          pulsar_teclas
+                                                                    │          + plantillas grabadas
+                                                                    ▼            (ejecutar_en_steam)
                                                      data/episodios.jsonl  ◄── de aquí se aprende
 ```
+
+El agente recuerda **la última aplicación** con la que has trabajado (15
+min): después de "abre la calculadora", "escribe 2+2" y "pulsa enter" van
+a la Calculadora sin repetirlo. Una skill lo pide con
+`del_contexto = {"aplicacion": "ultima_aplicacion"}`.
 
 | Pieza | Dónde | Qué hace |
 | ----- | ----- | -------- |
@@ -205,7 +211,7 @@ python .\add_phrases.py .\mis_frases.json  # un lote: [{"frase": "...", "intenci
 python .\nlu\training.py                   # reentrenar (segundos, CPU)
 ```
 
-- Unas **20–30 frases por intención**, variadas (verbos distintos, con y
+- Unas **20-30 frases por intención**, variadas (verbos distintos, con y
   sin artículos, con apps distintas). Incluye también frases de
   **otras** intenciones que se parezcan, para que aprenda la diferencia
   ("abre discord" / "cierra discord").

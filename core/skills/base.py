@@ -61,6 +61,15 @@ class Skill(ABC):
     # Acciones con consecuencias (cerrar una app...): se confirman cuando la orden
     # la ha interpretado el LLM y no el clasificador entrenado con tus frases.
     confirmar_si_llm: bool = False
+    # Parámetros que deben ser un trozo literal de la frase del usuario (el texto
+    # a escribir, las teclas): si el LLM los reformula, la orden no se acepta.
+    parametros_literales: frozenset[str] = frozenset()
+    # Skills con varios parámetros que el extractor simple (slots.py) no sabe
+    # separar ("escribe hola en discord"): si hay LLM, siempre se le consulta.
+    interpretar_con_llm: bool = False
+    # Parámetros que, si faltan, el agente rellena con el contexto de la sesión
+    # (p. ej. {"aplicacion": "ultima_aplicacion"}: la última app con la que se trabajó).
+    del_contexto: dict[str, str] = {}
     coste: int = 1                              # el planificador prefiere planes baratos
     PRECONDICIONES: dict[str, bool] = {}
     EFECTOS: dict[str, bool] = {}

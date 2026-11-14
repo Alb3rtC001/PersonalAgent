@@ -12,7 +12,8 @@ agente autónomo con planificación abierta -> Gestión por voz para Móvil con 
 
 > **Nueva arquitectura:** ver [ARQUITECTURA.md](ARQUITECTURA.md).
 > Todo lo que el agente sabe hacer son *skills* en `core/skills/`
-> (`crear_nota`, `abrir_aplicacion`, `cerrar_aplicacion`, `restaurar_ventana`) más las
+> (`crear_nota`, `abrir_aplicacion`, `cerrar_aplicacion`, `restaurar_ventana`,
+> `escribir_texto`, `pulsar_teclas`) más las
 > plantillas grabadas publicadas en `recorder/catalogo.json`.
 > Cada orden queda registrada en `data/episodios.jsonl`.
 
@@ -123,6 +124,9 @@ python .\dispatcher.py
 | `quiero jugar a <juego>`                 | Si Steam está cerrado lo abre, si está minimizado lo restaura, y luego reproduce la plantilla grabada (pide confirmación antes del último clic) |
 | `me haría falta la calculadora`          | Con el LLM: el clasificador no la conoce, el LLM la entiende como `abrir_aplicacion` (~0,5 s) |
 | `ya no necesito la calculadora, quítamela` | Con el LLM: `cerrar_aplicacion`, pero **pide confirmación** antes (cerrar algo por un malentendido molesta) |
+| `abre la calculadora` → `escribe 12+30` → `pulsa enter` | Escribe y calcula en la Calculadora: si no dices dónde, usa la última app con la que has trabajado (15 min). Si estaba minimizada, la restaura antes. `pulsa enter` pide confirmación cuando lo interpreta el LLM (un Enter puede enviar algo) |
+| `escribe hola a todos en discord`        | Pone Discord delante y escribe el texto (sin pulsar Enter). Ojo: escribe donde la app tenga el cursor; ver ARQUITECTURA.md §11 |
+| `pulsa control s en el bloc de notas`    | Teclas y combinaciones: `enter`, `tab 3 veces`, `flecha abajo`, `control mayúsculas esc`... |
 | `minimiza discord`                       | La rechaza: no hay skill para minimizar (no la confunde con otra)   |
 | `qué tiempo hace hoy`                    | Lo rechaza: no sabe hacerlo                                        |
 
@@ -197,7 +201,8 @@ asistente/
 │   ├── estado.py           # Ventanas, monitores y hechos del mundo (antes window_manager.py)
 │   ├── memoria.py          # Episodios (data/episodios.jsonl)
 │   ├── registro.py         # Catálogo de skills
-│   └── skills/             # base.py, crear_nota, abrir/cerrar_aplicacion, restaurar_ventana, plantilla
+│   ├── teclado.py          # Escribir texto y pulsar teclas (SendInput)
+│   └── skills/             # base.py, crear_nota, abrir/cerrar_aplicacion, restaurar_ventana, teclado (escribir/pulsar), plantilla
 ├── tests/                  # python -m pytest tests
 ├── evaluacion/             # Frases de evaluación + python -m evaluacion.evaluar
 ├── models/                 # llama.cpp + modelo GGUF (no se suben a git; ver models/README.md)

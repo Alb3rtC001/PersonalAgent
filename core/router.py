@@ -147,7 +147,10 @@ class Router:
             sin_disparador = normalizar(slot) == normalizar(texto)
             fuera = _desconocidas_fuera_del_slot(desconocidas, slot)
             dentro = len(slot.split()) > 1 and any(p in tokenizar(slot) for p in desconocidas)
-            return interp, sin_disparador or bool(fuera) or dentro
+            # Skills con varios parámetros que slots.py no sabe separar
+            # ("escribe hola en discord" → texto + aplicación).
+            varios = getattr(self.registro[intencion], "interpretar_con_llm", False)
+            return interp, sin_disparador or bool(fuera) or dentro or varios
         return interp, True
 
     def interpretar(self, texto: str) -> Interpretacion:

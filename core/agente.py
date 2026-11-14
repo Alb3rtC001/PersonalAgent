@@ -22,10 +22,12 @@ ratón y ventanas: dos a la vez se pisarían).
 from __future__ import annotations
 
 import threading
+import time
 from pathlib import Path
 from typing import Any, Callable
 
-from config import LLM_ACTIVO
+from config import CADUCIDAD_CONTEXTO, LLM_ACTIVO
+from core.estado import normalizar
 from core.executor import Confirmar, ejecutar_orden
 from core.memoria import registrar_episodio
 from core.registro import REGISTRO
@@ -48,6 +50,7 @@ class Agente:
         self.router = router or Router(self.registro, usar_llm=usar_llm, llm_cpu=llm_cpu)
         self.ruta_episodios = ruta_episodios
         self._lock = threading.Lock()
+        self._contexto: dict[str, tuple[Any, float]] = {}
 
     # --- LLM -------------------------------------------------------------------
 
@@ -88,11 +91,56 @@ class Agente:
     def ejecutar(self, interp: Interpretacion, params: dict[str, Any],
                  confirmar: Confirmar | None = None) -> Resultado:
         with self._lock:
-            return ejecutar_orden(
+            skill = self.registro.get(interp.skill)
+            params, rellenados = self._rellenar_con_contexto(skill, params)
+            resultado = ejecutar_orden(
                 interp.skill, params, texto=interp.texto, confianza=interp.confianza,
                 origen=interp.origen, confirmar=confirmar, registro=self.registro,
                 ruta_episodios=self.ruta_episodios,
             )
+            if rellenados and not resultado.falta:
+                resultado.mensaje += " (" + ", ".join(
+                    f"{k}: '{v}', la última usada" for k, v in rellenados.items()) + ")"
+            self._actualizar_contexto(interp.skill, params, resultado)
+            return resultado
+
+    # --- Contexto de la sesión ---------------------------------------------------
+    # De momento solo "la última aplicación con la que se ha trabajado", para
+    # órdenes como "abre la calculadora" → "escribe 2+2". Caduca a los
+    # CADUCIDAD_CONTEXTO segundos. (El contexto completo es la fase 4.)
+
+    def contexto(self, clave: str) -> Any:
+        valor, momento = self._contexto.get(clave, (None, 0.0))
+        if valor is not None and time.monotonic() - momento > CADUCIDAD_CONTEXTO:
+            self._contexto.pop(clave, None)
+            return None
+        return valor
+
+    def _rellenar_con_contexto(self, skill: Skill | None,
+                               params: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+        params, rellenados = dict(params), {}
+        for parametro, clave in (getattr(skill, "del_contexto", None) or {}).items():
+            valor_actual = params.get(parametro)
+            if valor_actual is None or (isinstance(valor_actual, str) and not valor_actual.strip()):
+                valor = self.contexto(clave)
+                if valor:
+                    params[parametro] = rellenados[parametro] = valor
+        return params, rellenados
+
+    def _actualizar_contexto(self, skill: str | None, params: dict[str, Any],
+                             resultado: Resultado) -> None:
+        if not resultado.ok:
+            return
+        # abrir_aplicacion devuelve el nombre real ("Calculadora" para "calcu").
+        app = resultado.datos.get("aplicacion") or params.get("aplicacion")
+        if not app:
+            return
+        if skill == "cerrar_aplicacion":
+            ultima = self.contexto("ultima_aplicacion")
+            if ultima and normalizar(ultima) in (normalizar(app), normalizar(params.get("aplicacion", ""))):
+                self._contexto.pop("ultima_aplicacion", None)
+            return
+        self._contexto["ultima_aplicacion"] = (app, time.monotonic())
 
     # --- Interactiva (CLI) ---------------------------------------------------
 

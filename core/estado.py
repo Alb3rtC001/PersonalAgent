@@ -55,9 +55,8 @@ GWL_EXSTYLE = -20
 WS_EX_TOOLWINDOW = 0x00000080
 SW_SHOW = 5
 SW_RESTORE = 9
-VK_MENU = 0x12
-KEYEVENTF_KEYUP = 0x2
 WM_CLOSE = 0x0010
+DWMWA_CLOAKED = 14
 
 _cache_procesos: dict[int, str] = {}
 
@@ -164,6 +163,23 @@ def _es_ventana_principal_oculta(hwnd: int) -> bool:
     return bool(_user32.IsIconic(hwnd))
 
 
+def _camuflada(hwnd: int) -> bool:
+    """
+    Ventana "cloaked": existe y Windows la da por visible, pero no se ve. Pasa
+    con la ventana interna de las apps de la Microsoft Store cuando se
+    minimizan (la Calculadora, p. ej.: se ve solo su marco minimizado) y con
+    las ventanas de otros escritorios virtuales. Se ignoran: no son algo
+    sobre lo que se pueda actuar.
+    """
+    estado = wt.DWORD()
+    try:
+        ctypes.windll.dwmapi.DwmGetWindowAttribute(
+            wt.HWND(hwnd), DWMWA_CLOAKED, ctypes.byref(estado), ctypes.sizeof(estado))
+    except (AttributeError, OSError):
+        return False
+    return estado.value != 0
+
+
 def _handles(incluir_ocultas: bool) -> list[int]:
     if not WINDOWS_DISPONIBLE:
         return []
@@ -171,7 +187,7 @@ def _handles(incluir_ocultas: bool) -> list[int]:
 
     @ctypes.WINFUNCTYPE(wt.BOOL, wt.HWND, wt.LPARAM)
     def recoger(hwnd, _):
-        if _titulo(hwnd):
+        if _titulo(hwnd) and not _camuflada(hwnd):
             if _user32.IsWindowVisible(hwnd):
                 handles.append(hwnd)
             elif incluir_ocultas and _es_ventana_principal_oculta(hwnd):
@@ -244,13 +260,56 @@ def traer_al_frente(hwnd: int) -> bool:
     if _user32.IsIconic(hwnd) or not _user32.IsWindowVisible(hwnd):
         _user32.ShowWindow(hwnd, SW_RESTORE)
     _user32.ShowWindow(hwnd, SW_SHOW)
-    # Windows solo deja cambiar el foco si el proceso "acaba de recibir una
-    # tecla": pulsar y soltar ALT es el truco habitual para que lo permita.
-    _user32.keybd_event(VK_MENU, 0, 0, 0)
-    _user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0)
-    _user32.SetForegroundWindow(hwnd)
+    _dar_foco(hwnd)
     time.sleep(0.3)
     return ventana_visible(hwnd)
+
+
+def _dar_foco(hwnd: int) -> bool:
+    """
+    Windows solo deja a un programa quitarle el foco a otro en ciertos casos.
+    Antes se usaba el truco de pulsar y soltar ALT, pero el "soltar" llega a
+    la ventana nueva y, en las que tienen barra de menú, activa el menú, que
+    se come la primera tecla que se escriba después. Ahora:
+    1. Se engancha un momento la entrada de teclado de la ventana activa
+       (AttachThreadInput), que es lo que Windows permite para esto.
+    2. Si no basta, un movimiento de ratón de 0 píxeles (cuenta como
+       "entrada reciente" y no pulsa ninguna tecla) y se reintenta.
+    """
+    actual = _user32.GetForegroundWindow()
+    if actual == hwnd:
+        return True
+    mio = ctypes.windll.kernel32.GetCurrentThreadId()
+    hilo_actual = _user32.GetWindowThreadProcessId(actual, None) if actual else 0
+    enganchado = bool(hilo_actual and hilo_actual != mio
+                      and _user32.AttachThreadInput(mio, hilo_actual, True))
+    try:
+        _user32.BringWindowToTop(hwnd)
+        _user32.SetForegroundWindow(hwnd)
+    finally:
+        if enganchado:
+            _user32.AttachThreadInput(mio, hilo_actual, False)
+    if _user32.GetForegroundWindow() == hwnd:
+        return True
+    from core.teclado import mover_raton_nulo
+    mover_raton_nulo()
+    _user32.SetForegroundWindow(hwnd)
+    return _user32.GetForegroundWindow() == hwnd
+
+
+def hwnd_activo() -> int:
+    """Identificador de la ventana que tiene el foco ahora mismo (0 si no se sabe)."""
+    return int(_user32.GetForegroundWindow() or 0) if WINDOWS_DISPONIBLE else 0
+
+
+def poner_foco(hwnd: int, intentos: int = 3) -> bool:
+    """Trae la ventana al frente y comprueba que de verdad tiene el foco del teclado."""
+    for _ in range(intentos):
+        traer_al_frente(hwnd)
+        if hwnd_activo() == hwnd:
+            return True
+        time.sleep(0.2)
+    return False
 
 
 def ventana_existe(hwnd: int) -> bool:

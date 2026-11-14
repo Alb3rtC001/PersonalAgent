@@ -27,16 +27,16 @@ import os
 import time
 from pathlib import Path
 
-from config import ALIAS_APLICACIONES, CERRAR_TERMINA_BANDEJA, ESPERA_MAX_CIERRE
+from config import CERRAR_TERMINA_BANDEJA, ESPERA_MAX_CIERRE
 from core.estado import (
     listar_ventanas_abiertas,
-    normalizar,
     pedir_cierre,
     ventana_existe,
     ventana_mostrada,
 )
-from core.skills.abrir_aplicacion import AppInstalada, buscar_app, listar_apps_instaladas
+from core.skills.abrir_aplicacion import AppInstalada, listar_apps_instaladas
 from core.skills.base import Resultado, Skill
+from core.skills.ventanas import nombres_de_app, ventana_de_app
 
 try:
     import psutil
@@ -56,23 +56,7 @@ PROCESOS_PROTEGIDOS = {
     "textinputhost.exe", "searchhost.exe", "startmenuexperiencehost.exe",
     "shellexperiencehost.exe", "runtimebroker.exe", "taskhostw.exe",
 }
-SEPARADORES_TITULO = (" - ", " — ", " | ")
 MAX_NIVELES_PADRE = 8   # tope al subir por los procesos padre (por si acaso)
-
-
-def ventana_de_app(ventana: dict, nombres: list[str]) -> bool:
-    """¿Esta ventana es de la app? (coincidencia estricta, ver docstring del módulo)."""
-    titulo = normalizar(ventana.get("titulo", ""))
-    proceso = normalizar(Path(ventana.get("proceso") or "").stem)
-    for nombre in nombres:
-        n = normalizar(nombre)
-        if not n:
-            continue
-        if titulo == n or (proceso and proceso == n.replace(" ", "")):
-            return True
-        if any(titulo.endswith(sep + n) for sep in SEPARADORES_TITULO):
-            return True
-    return False
 
 
 def _pids_propios() -> set[int]:
@@ -159,16 +143,12 @@ class CerrarAplicacion(Skill):
 
     def _nombres(self, aplicacion: str) -> list[str]:
         """Lo que ha dicho el usuario, su alias y el nombre de la app en el menú Inicio."""
-        nombres = {aplicacion, ALIAS_APLICACIONES.get(normalizar(aplicacion), aplicacion)}
         try:
             if self._apps is None:
                 self._apps = listar_apps_instaladas()
-            candidatas = buscar_app(aplicacion, self._apps)
-            if candidatas:
-                nombres.add(candidatas[0][1].nombre)
         except Exception:  # sin índice del menú Inicio se busca solo por lo dicho
-            pass
-        return sorted(n for n in nombres if n.strip())
+            self._apps = []
+        return nombres_de_app(aplicacion, self._apps)
 
     def _ventanas(self, nombres: list[str]) -> list[dict]:
         return [v for v in listar_ventanas_abiertas(incluir_ocultas=True) if ventana_de_app(v, nombres)]

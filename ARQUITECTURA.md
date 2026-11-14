@@ -189,6 +189,9 @@ tests/
 | Una línea a medio escribir en `episodios.jsonl` rompía `/episodios` | Se ignora | 3 ✅ |
 | `cliente.py` se cerraba con un traceback si el servidor caía o respondía un error no JSON | Errores capturados y mostrados | 3 ✅ |
 | Sin forma de desactivar el LLM sin editar código | `--sin-llm`, `llm off/on`, `POST /llm`, `PERSONALAGENT_LLM`, descarga por inactividad | 3 ✅ |
+| Al dar el foco a una ventana se perdía la primera tecla escrita después (el truco de pulsar ALT activaba el menú de la app) | `AttachThreadInput` + movimiento de ratón nulo; sin teclas falsas | 3 ✅ |
+| Las apps de la Store minimizadas dejan una ventana interna "camuflada" (cloaked) que el agente tomaba por visible: no se restauraban ni recibían el foco | Las ventanas camufladas se ignoran | 3 ✅ |
+| `escribir_texto` escribe en la ventana, pero no puede saber si el cursor está en el campo correcto | Pendiente: UI Automation (§11) | 5 |
 | `abrir_aplicacion` da por buena cualquier ventana nueva (una notificación que aparezca a la vez cuenta como éxito) | Pendiente: exigir que la ventana nueva sea de un proceso lanzado tras la orden (ojo con el Explorador, que reutiliza explorer.exe) | 5 |
 
 ---
@@ -225,7 +228,8 @@ Cada fase termina con algo que funciona de punta a punta.
 - **Fase 4 — Memoria y contexto.** Contexto de sesión, verificador de éxito
   general, recuperación de episodios parecidos como ejemplos.
 - **Fase 5 — Acciones robustas.** UI Automation; grabador v2 que guarda el
-  control pulsado (nombre, tipo) en vez de coordenadas; OCR solo si no hay otra opción.
+  control pulsado (nombre, tipo) en vez de coordenadas; campo destino de
+  `escribir_texto` (§11); OCR solo si no hay otra opción.
 - **Fase 6 — Aprendizaje continuo.** Episodios → dataset → reentreno del
   clasificador y LoRA del LLM; propuesta automática de skills compuestas a
   partir de secuencias repetidas.
@@ -431,3 +435,65 @@ El fallo del híbrido es "minimiza discord" → `cerrar_aplicacion`: es un caso
 límite en el que el modelo no siempre responde igual (en la vía "solo LLM"
 lo rechazó bien). Son pocas frases: para medir de verdad hay que ir
 añadiendo órdenes reales (de `data/episodios.jsonl`) al conjunto de control.
+
+---
+
+## 11. Escribir en el campo correcto (diseño, pendiente para la fase 5)
+
+`escribir_texto` y `pulsar_teclas` ponen la **ventana** en primer plano y
+comprueban que tiene el foco del teclado. Pero dentro de la ventana el
+texto va al **control** que tenga el cursor, y eso no siempre es el campo
+que quieres:
+
+| App | ¿Funciona hoy? | Por qué |
+| --- | -------------- | ------- |
+| Calculadora | Sí | Toda la ventana acepta teclado |
+| Bloc de notas | Sí | El único control es el área de texto |
+| Discord, Telegram, WhatsApp | Normalmente | Al activarse ponen el cursor en el cuadro de mensaje (pero no si estabas en el buscador) |
+| Chrome / Google | No siempre | El cursor puede estar en la página, en la barra de direcciones o en ningún sitio |
+
+### Solución propuesta, por capas (de más barata a más cara)
+
+1. **Mirar dónde está el cursor (UI Automation).** Windows expone el árbol
+   de controles de casi todas las apps (Win32, WPF, Store, Chrome/Edge,
+   Electron como Discord) a través de UI Automation, la API de
+   accesibilidad. Con ella se puede preguntar qué control tiene el foco y
+   si es editable (tipo *Edit* o *Document*, no de solo lectura). Si lo
+   es, se escribe; si no, se busca uno. Además permite **leer el valor**
+   después de escribir, que es la verificación que hoy falta. Librerías
+   locales y libres: `uiautomation` (Apache 2.0) o `pywinauto` (BSD).
+
+2. **Aprenderlo por demostración, una vez por app.** Un "grabador de campo":
+   le dices "aprende dónde se escribe en Chrome", haces clic en el buscador
+   y el agente guarda el control bajo el ratón (tipo, nombre, AutomationId),
+   no las coordenadas. Se guarda en `data/campos.json` (app → selector) y a
+   partir de ahí `escribir_texto` enfoca ese control antes de escribir.
+   Es la misma idea que el grabador v2 de la fase 5. Encaja con tu idea de
+   que aprenda de lo que le enseñas, y no necesita entrenar ninguna red:
+   es una memoria de "en esta app, aquí".
+
+3. **Que el LLM elija entre los candidatos.** Cuando no hay nada aprendido
+   o dices el campo ("escribe hola en el buscador"), se le pasa al LLM la
+   lista de controles editables de la ventana (nombre y tipo, p. ej.
+   "Barra de direcciones y de búsqueda", "Buscar", "Mensaje en #general")
+   con salida restringida a esa lista, igual que hoy con las skills. Lo que
+   elijas se guarda como en el punto 2. `escribir_texto` ganaría un
+   parámetro opcional `campo`.
+
+4. **Atajos de teclado por app** (complemento barato): muchas apps tienen
+   uno para ir al campo (Ctrl+L en los navegadores, "/" en muchas webs).
+   Se pueden guardar por app en el mismo `data/campos.json`.
+
+5. **Visión, solo como último recurso:** un modelo que localice el campo
+   en una captura de pantalla (detección de elementos de interfaz). Sirve
+   para apps sin accesibilidad (juegos, lienzos), pero pide más GPU y es
+   menos fiable. No hace falta para las apps habituales.
+
+**¿Un modelo propio para esto?** No hace falta al principio: los puntos 1
+y 2 lo resuelven sin entrenar nada, y el 3 reutiliza el LLM que ya
+tenemos. Con muchas apps y muchos campos aprendidos sí tendría sentido un
+modelo pequeño que ordene los controles candidatos (por tipo, nombre,
+tamaño y posición) a partir de tus elecciones guardadas, para acertar en
+apps nuevas parecidas (p. ej., el cuadro de mensaje de cualquier app de
+chat). Sería un clasificador pequeño como el de `nlu/`, entrenado con
+`data/campos.json`.

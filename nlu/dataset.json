@@ -312,6 +312,14 @@
     "intencion": "crear_nota"
   },
   {
+    "frase": "escribe una nota que diga comprar pan",
+    "intencion": "crear_nota"
+  },
+  {
+    "frase": "escribe una nota con lo que te voy a decir",
+    "intencion": "crear_nota"
+  },
+  {
     "frase": "que tiempo hace hoy",
     "intencion": "ninguna"
   },
@@ -822,5 +830,205 @@
   {
     "frase": "mata el proceso de chrome",
     "intencion": "cerrar_aplicacion"
+  },
+  {
+    "frase": "escribe hola",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "escribe 2+2",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "escribe hola que tal",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "escribe buenos dias",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "escribe 15*3",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "escribe mi correo",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "escribe ok",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "escribe gracias por todo",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "escribe el texto hola mundo",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "escribe esto: nos vemos mañana",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "escríbeme hola",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "teclea hola",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "teclea 1234",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "teclea buenas tardes",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "pon el texto hola mundo",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "mete el texto bienvenido",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "introduce el texto contraseña nueva",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "introduce 4567",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "quiero escribir hola",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "puedes escribir hasta luego",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "escribe que llego tarde",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "escribe hola en discord",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "escribe 100/4 en la calculadora",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "escribe ya voy en whatsapp",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "teclea 3+5 en la calculadora",
+    "intencion": "escribir_texto"
+  },
+  {
+    "frase": "pulsa enter",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "pulsa intro",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "pulsa tab",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "pulsa escape",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "pulsa espacio",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "pulsa control s",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "pulsa control z",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "pulsa control c",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "pulsa alt tab",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "pulsa la tecla enter",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "pulsa flecha abajo",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "pulsa flecha arriba",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "pulsa tab dos veces",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "pulsa retroceso",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "pulsa suprimir",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "pulsa f5",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "presiona enter",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "presiona escape",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "presiona control v",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "aprieta intro",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "dale a enter",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "dale a la tecla tab",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "pulsa enter en discord",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "pulsa control s en el bloc de notas",
+    "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "pulsa las teclas control shift t",
+    "intencion": "pulsar_teclas"
   }
 ]

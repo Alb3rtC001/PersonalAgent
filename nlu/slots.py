@@ -33,6 +33,16 @@ DISPARADORES = {
         "cerrar", "cierra", "sal de", "salir de", "salte de", "quita",
         "termina el proceso de", "termina", "mata el proceso de", "mata", "por favor",
     ],
+    "escribir_texto": [
+        "puedes escribir", "quiero escribir", "escribeme", "escribe esto",
+        "escribe el texto", "escribe", "escribir", "teclea", "teclear",
+        "pon el texto", "mete el texto", "introduce el texto", "introduce",
+    ],
+    "pulsar_teclas": [
+        "puedes pulsar", "pulsa la tecla", "pulsa las teclas", "pulsa",
+        "pulsar", "presiona la tecla", "presiona", "aprieta", "dale a la tecla",
+        "dale a", "teclea la tecla",
+    ],
     "crear_nota": [
         "hazme el favor de anotar", "puedes apuntar esto por mi",
         "puedes crear una nota", "quiero crear una nota",
@@ -68,10 +78,24 @@ DISPARADORES = {
 ARTICULOS_INICIALES = {"el", "la", "los", "las", "un", "una", "unos", "unas"}
 
 
+# Muletillas que pueden quedar al FINAL de un nombre de app o juego ("cierra
+# el spotify ya"). Solo para intenciones cuyo valor es un nombre: en un texto
+# a escribir o en una nota, "ya" o "ahora" pueden ser parte del contenido.
+MULETILLAS_FINALES = {"ya", "ahora", "porfa", "rapido", "ahora mismo"}
+INTENCIONES_CON_NOMBRE = {"abrir_aplicacion", "cerrar_aplicacion", "ejecutar_en_steam"}
+
+
 def _quitar_articulo_inicial(texto: str) -> str:
     palabras = texto.split()
     while palabras and palabras[0].lower() in ARTICULOS_INICIALES:
         palabras = palabras[1:]
+    return " ".join(palabras)
+
+
+def _quitar_muletillas_finales(texto: str) -> str:
+    palabras = texto.split()
+    while len(palabras) > 1 and _quitar_acentos(palabras[-1].lower()) in MULETILLAS_FINALES:
+        palabras = palabras[:-1]
     return " ".join(palabras)
 
 
@@ -115,8 +139,10 @@ def extraer_slot(texto: str, intencion: str) -> str:
                     conservar[i] = False
 
     restante = "".join(c if keep else " " for c, keep in zip(original, conservar))
-    slot = re.sub(r"\s+", " ", restante).strip()
-    return _quitar_articulo_inicial(slot)
+    slot = _quitar_articulo_inicial(re.sub(r"\s+", " ", restante).strip())
+    if intencion in INTENCIONES_CON_NOMBRE:
+        slot = _quitar_muletillas_finales(slot)
+    return slot
 
 
 if __name__ == "__main__":

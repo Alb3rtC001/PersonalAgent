@@ -71,6 +71,10 @@ Reglas:
    que el usuario no ha dicho).
 4. Los juegos se lanzan con ejecutar_en_steam; los programas y apps se abren
    con abrir_aplicacion.
+5. escribir_texto teclea en una aplicación; crear_nota guarda una nota en un
+   archivo. El texto a escribir y las teclas se copian exactamente como los
+   dice el usuario (sin las palabras de la orden: "escribe hola en discord"
+   -> texto "hola", aplicacion "discord").
 
 Skills disponibles:
 """
@@ -444,8 +448,10 @@ class InterpreteLLM:
 
         # Un nombre corto (app, juego...) que no aparece en la frase es una
         # invención ("cuánto es 15 por 3" -> abrir 'calculetta'): no se acepta.
+        # Tampoco un parámetro literal reformulado (el texto a escribir, las teclas).
+        literales = getattr(definicion, "parametros_literales", frozenset())
         inventados = [c for c in no_anclados
-                      if c in definicion.parametros and len(params[c].split()) <= 3]
+                      if c in literales or (c in definicion.parametros and len(params[c].split()) <= 3)]
         if inventados:
             return ResultadoLLM(None, params, motivo=(f"No he entendido bien la orden (¿{skill}? "
                                 f"'{params[inventados[0]]}' no aparece en lo que has dicho)."),
