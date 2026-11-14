@@ -226,7 +226,7 @@ Cada fase termina con algo que funciona de punta a punta.
   - ⏳ Sustituir el clasificador bag-of-words por un transformer pequeño
     propio que también extraiga los parámetros.
   - ✅ Órdenes de varios pasos: pasan a la fase 4 (ver abajo).
-- **Fase 4 — Memoria, contexto y órdenes compuestas (en curso).**
+- **Fase 4 — Memoria, contexto y órdenes compuestas (hecha).**
   - ✅ Órdenes de varios pasos: el LLM devuelve `{"pasos": [...]}` (máx. 12);
     si algún paso tiene consecuencias se confirma el plan entero una vez; se
     ejecutan en orden y paran en el primer fallo; un episodio por orden.
@@ -236,12 +236,19 @@ Cada fase termina con algo que funciona de punta a punta.
   - ✅ Autocorrección: si la respuesta del LLM no es válida, se le enseña el
     error y la corrige una vez.
   - ✅ Protección de la GPU (§12).
-  - ⏳ Tareas programadas ("dentro de 5 min", "a las 17:30"), confirmadas
-    al programarlas.
-  - ⏳ Memoria en SQLite + episodios parecidos como ejemplos del LLM (sin GPU:
-    similitud de texto en CPU).
-  - ⏳ Steam por su protocolo (`steam://rungameid/<id>`) y sus archivos
-    (`appmanifest_*.acf`: juegos instalados y actualizaciones pendientes).
+  - ✅ Tareas programadas: cualquier orden con una expresión de tiempo al
+    principio o al final ("dentro de 5 min", "a las 17:30", "mañana a las 9")
+    se interpreta ya, se confirma SIEMPRE al programarla y se guarda en SQLite
+    (`data/agente.db`); un hilo la ejecuta a su hora sin volver a preguntar.
+    Si el agente estaba apagado y han pasado más de 10 min, se marca como
+    perdida. `ver_tareas`, `cancelar_tarea`, `GET/DELETE /tareas`. En una
+    nota la hora es contenido: no se programa.
+  - ✅ Memoria: hasta 3 órdenes tuyas parecidas que salieron bien se le
+    enseñan al LLM como ejemplos (parecido de texto por trigramas, CPU, ms).
+    Se guarda lo interpretado antes de rellenar con el contexto.
+  - ✅ Steam por sus archivos y su protocolo: `ejecutar_en_steam` lanza con
+    `steam://rungameid/<id>` y comprueba que el juego arranca (sustituye a la
+    plantilla de clics); `actualizaciones_steam` lee los `appmanifest_*.acf`.
 - **Fase 5 — Grabadora semántica + LLM (decidido).** UI Automation (CPU,
   sin GPU): la grabadora guarda el control pulsado (tipo, nombre,
   AutomationId) y los atajos usados, no coordenadas; con una sola
@@ -303,10 +310,12 @@ episodios, comparar vectores con numpy a fuerza bruta tarda milisegundos.
 
 Plan de evolución (todo local y gratuito):
 
-1. **Ahora (fase 2):** JSONL, solo añadir al final, con un lock para los
-   hilos de la API. Todo el acceso pasa por `core/memoria.py`, así que
-   cambiar el almacenamiento no toca el resto del código.
-2. **Fase 4:** migrar a **SQLite** (`data/agente.db`): tablas de episodios,
+1. **Fases 2–4 (hecho):** episodios en JSONL, solo añadir al final, con un
+   lock para los hilos de la API. La memoria de órdenes parecidas (fase 4)
+   los lee de ahí con parecido de texto en CPU; con miles de episodios tarda
+   milisegundos, así que de momento no hace falta más. Las tareas
+   programadas sí van en **SQLite** (`data/agente.db`).
+2. **Cuando haga falta:** pasar también los episodios a SQLite: tablas de episodios,
    pasos y contexto de sesión, con consultas reales (por skill, por fecha,
    solo fallidos...). Los embeddings de cada frase se calculan en local
    (p. ej. `sentence-transformers` multilingüe, ~100 MB, CPU) y se guardan

@@ -74,6 +74,7 @@ def main() -> None:
     usar_llm = LLM_ACTIVO and not args.sin_llm or args.llm_cpu
     agente = Agente(usar_llm=usar_llm, llm_cpu=args.llm_cpu)
     agente.precargar()
+    agente.iniciar_agenda()   # ejecuta las órdenes programadas a su hora
     print(describir_llm(agente.estado_llm()))
     print("Escribe una orden (o 'salir' para terminar). Ctrl+C cancela la orden en curso.")
     print("'llm off' / 'llm on' desactiva o activa el LLM; 'llm' muestra su estado.")

@@ -14,6 +14,8 @@ from core.skills.cerrar_aplicacion import CerrarAplicacion
 from core.skills.crear_nota import CrearNota
 from core.skills.plantilla import cargar_skills_plantilla
 from core.skills.restaurar_ventana import RestaurarVentana
+from core.skills.agenda import CancelarTarea, VerTareas
+from core.skills.steam import ActualizacionesSteam, EjecutarEnSteam
 from core.skills.teclado import EscribirTexto, PulsarTeclas
 
 SKILLS_NATIVAS: list[Skill] = [
@@ -23,6 +25,10 @@ SKILLS_NATIVAS: list[Skill] = [
     RestaurarVentana(),
     EscribirTexto(),
     PulsarTeclas(),
+    EjecutarEnSteam(),        # sustituye a la plantilla grabada del mismo nombre
+    ActualizacionesSteam(),
+    VerTareas(),
+    CancelarTarea(),
 ]
 
 

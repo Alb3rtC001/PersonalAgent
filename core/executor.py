@@ -101,6 +101,7 @@ def ejecutar_orden(
     estado: EstadoMundo | None = None,
     ruta_episodios: Path | None = None,
     registrar: bool = True,
+    extra: dict[str, Any] | None = None,
 ) -> Resultado:
     """
     `registrar=False`: no guarda el episodio (lo hace quien llama, p. ej. una
@@ -159,6 +160,7 @@ def ejecutar_orden(
                 "replanificado": replanificado,
                 "ok": resultado.ok,
                 "mensaje": resultado.mensaje,
+                **(extra or {}),
             },
             ruta_episodios,
         )

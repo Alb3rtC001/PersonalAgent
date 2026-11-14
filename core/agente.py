@@ -25,11 +25,15 @@ import inspect
 import logging
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
 from config import CADUCIDAD_CONTEXTO, LLM_ACTIVO
+from core.agenda import Agenda, Planificador, Tarea
 from core.estado import normalizar
+from core.skills.agenda import SKILLS_DE_AGENDA, usar_agenda
+from core.tiempo import describir_cuando, separar_tiempo
 from core.executor import Confirmar, ejecutar_orden
 from core.traza import nueva_orden
 from core.memoria import registrar_episodio
@@ -51,12 +55,16 @@ class Agente:
     def __init__(self, router: Router | None = None,
                  registro: dict[str, Skill] | None = None,
                  ruta_episodios: Path | None = None,
-                 usar_llm: bool = LLM_ACTIVO, llm_cpu: bool = False):
+                 usar_llm: bool = LLM_ACTIVO, llm_cpu: bool = False,
+                 ruta_bd: Path | None = None):
         self.registro = REGISTRO if registro is None else registro
         self.router = router or Router(self.registro, usar_llm=usar_llm, llm_cpu=llm_cpu)
         self.ruta_episodios = ruta_episodios
-        self._lock = threading.Lock()
+        self.ruta_bd = ruta_bd
+        self._lock = threading.RLock()   # reentrante: una tarea programada se ejecuta con ejecutar()
         self._contexto: dict[str, tuple[Any, float]] = {}
+        self._agenda: Agenda | None = None
+        self._planificador: Planificador | None = None
 
     # --- LLM -------------------------------------------------------------------
 
@@ -86,14 +94,23 @@ class Agente:
         nueva_orden(texto)   # la traza de la orden anterior se borra aquí
         contexto = {"ultima_aplicacion": self.contexto("ultima_aplicacion")}
         log.debug("Contexto de la sesión: %s", contexto)
-        t0 = time.monotonic()
-        if "contexto" in inspect.signature(self.router.interpretar).parameters:
-            interp = self.router.interpretar(texto, contexto=contexto)
-        else:  # routers sin contexto (p. ej. los de los tests)
-            interp = self.router.interpretar(texto)
-        log.debug("Interpretación (%s, %.0f ms): skill=%s params=%s pasos=%s confianza=%.2f rechazo=%s",
-                  interp.origen, (time.monotonic() - t0) * 1000, interp.skill, interp.params,
-                  interp.pasos or "-", interp.confianza, interp.motivo_rechazo)
+
+        interp = None
+        tiempo = separar_tiempo(texto)
+        if tiempo:
+            # "abre steam dentro de 5 min": se interpreta "abre steam" y se programa.
+            orden, cuando, expresion, relativa = tiempo
+            log.debug("Expresión de tiempo: %r → %s; orden: %r", expresion, cuando, orden)
+            candidata = self._interpretar_texto(orden, contexto)
+            if not candidata.motivo_rechazo and self._se_puede_programar(candidata, relativa):
+                candidata.texto = texto
+                candidata.programada = {"cuando": cuando, "expresion": expresion, "orden": orden}
+                interp = candidata
+            else:
+                log.debug("No se programa (%s): se interpreta la frase entera.",
+                          candidata.motivo_rechazo or "el tiempo es parte del contenido")
+        if interp is None:
+            interp = self._interpretar_texto(texto, contexto)
         if interp.motivo_rechazo:
             # Las frases rechazadas también se guardan: son candidatas a ampliar el dataset.
             registrar_episodio(
@@ -104,9 +121,36 @@ class Agente:
             )
         return interp
 
+    def _interpretar_texto(self, texto: str, contexto: dict[str, Any]) -> Interpretacion:
+        t0 = time.monotonic()
+        if "contexto" in inspect.signature(self.router.interpretar).parameters:
+            interp = self.router.interpretar(texto, contexto=contexto)
+        else:  # routers sin contexto (p. ej. los de los tests)
+            interp = self.router.interpretar(texto)
+        log.debug("Interpretación (%s, %.0f ms): skill=%s params=%s pasos=%s confianza=%.2f rechazo=%s",
+                  interp.origen, (time.monotonic() - t0) * 1000, interp.skill, interp.params,
+                  interp.pasos or "-", interp.confianza, interp.motivo_rechazo)
+        return interp
+
+    @staticmethod
+    def _se_puede_programar(interp: Interpretacion, relativa: bool) -> bool:
+        """
+        En una nota, la hora es parte del contenido ("apunta que tengo dentista
+        mañana a las 9"): nunca se programa. Un texto a escribir solo con tiempos
+        relativos ("escribe hola dentro de 5 min"), no con horas ("...a las 5").
+        """
+        skills = [s for s, _ in interp.pasos] if interp.pasos else [interp.skill]
+        if "crear_nota" in skills or any(s in SKILLS_DE_AGENDA for s in skills):
+            return False
+        return relativa or "escribir_texto" not in skills
+
     def ejecutar(self, interp: Interpretacion, params: dict[str, Any],
                  confirmar: Confirmar | None = None) -> Resultado:
         with self._lock:
+            if interp.programada:
+                resultado = self._programar(interp, params, confirmar)
+                log.debug("Resultado final: ok=%s falta=%s | %s", resultado.ok, resultado.falta, resultado.mensaje)
+                return resultado
             if interp.pasos:
                 resultado = self._ejecutar_varios_pasos(interp, confirmar)
                 log.debug("Resultado final: ok=%s | %s", resultado.ok, resultado.mensaje)
@@ -119,6 +163,9 @@ class Agente:
                 interp.skill, params, texto=interp.texto, confianza=interp.confianza,
                 origen=interp.origen, confirmar=confirmar, registro=self.registro,
                 ruta_episodios=self.ruta_episodios,
+                # Lo interpretado ANTES de rellenar con el contexto: es lo que la
+                # memoria enseñará al LLM como ejemplo (core/memoria.py).
+                extra={"parametros_interpretados": dict(interp.params)},
             )
             if rellenados and not resultado.falta:
                 resultado.mensaje += " (" + ", ".join(
@@ -126,6 +173,78 @@ class Agente:
             self._actualizar_contexto(interp.skill, params, resultado)
             log.debug("Resultado final: ok=%s falta=%s | %s", resultado.ok, resultado.falta, resultado.mensaje)
             return resultado
+
+    # --- Tareas programadas ---------------------------------------------------------
+
+    @property
+    def agenda(self) -> Agenda:
+        if self._agenda is None:
+            self._agenda = Agenda(self.ruta_bd) if self.ruta_bd else Agenda()
+            usar_agenda(self._agenda)   # la que usan ver_tareas y cancelar_tarea
+        return self._agenda
+
+    def iniciar_agenda(self) -> None:
+        """Arranca el hilo que ejecuta las tareas programadas a su hora."""
+        if self._planificador is None:
+            self._planificador = Planificador(self.agenda, self._ejecutar_tarea)
+        self._planificador.iniciar()
+
+    def _programar(self, interp: Interpretacion, params: dict[str, Any],
+                   confirmar: Confirmar | None) -> Resultado:
+        """
+        Se completa y valida la orden AHORA (a su hora no estarás para contestar),
+        se te enseña con su hora y, si la confirmas, se guarda en la agenda.
+        """
+        cuando: datetime = interp.programada["cuando"]
+        if interp.pasos:
+            pasos, error = self._preparar_pasos(interp.pasos)
+            if error:
+                return Resultado(False, f"No puedo programar esa orden: {error}")
+            descripcion = " → ".join(self.registro[n].describir_paso(p) for n, p in pasos)
+            orden = {"skill": VARIOS_PASOS, "params": {}, "pasos": [list(p) for p in pasos]}
+        else:
+            skill = self.registro.get(interp.skill)
+            if skill is None:
+                return Resultado(False, f"No existe ninguna skill llamada '{interp.skill}'.")
+            params, _ = self._rellenar_con_contexto(skill, params)
+            falta = skill.validar(params)
+            if falta:   # se pregunta ahora, como en cualquier orden
+                return Resultado(False, f"Falta un dato para '{skill.nombre}': "
+                                        f"{skill.parametros.get(falta, falta)}.", falta=falta)
+            error = skill.comprobar_valores(params)
+            if error:
+                return Resultado(False, f"No puedo programar esa orden: {error}")
+            descripcion = skill.describir_paso(params)
+            orden = {"skill": interp.skill, "params": params, "pasos": []}
+        orden.update(origen=interp.origen, confianza=interp.confianza)
+
+        accion = f"programar para {describir_cuando(cuando)}: {descripcion}"
+        confirmado = confirmar is not None and confirmar(accion)
+        log.debug("Confirmación de '%s': %s", accion, "sí" if confirmado else "no")
+        if not confirmado:   # las tareas programadas SIEMPRE se confirman al programarlas
+            return Resultado(False, f"Necesita confirmación: {accion}",
+                             datos={"cancelado": True, "accion": accion, "planes": [[descripcion]]})
+        tarea = self.agenda.programar(interp.programada["orden"], cuando, orden, descripcion)
+        registrar_episodio(
+            {"texto": interp.texto, "skill": "programar", "tarea": tarea.id, "cuando": cuando.isoformat(),
+             "orden": orden, "origen": interp.origen, "ok": True, "mensaje": accion},
+            self.ruta_episodios,
+        )
+        return Resultado(True, f"Programada la tarea #{tarea.id} para {describir_cuando(cuando)}: {descripcion}",
+                         datos={"tarea": tarea.id, "planes": [[descripcion]]})
+
+    def _ejecutar_tarea(self, tarea: Tarea) -> tuple[bool, str]:
+        """Lo llama el planificador a su hora: sin preguntar (ya se confirmó al programarla)."""
+        nueva_orden(f"[tarea #{tarea.id} programada] {tarea.texto}")
+        orden = tarea.orden
+        interp = Interpretacion(tarea.texto, orden["skill"], orden.get("confianza") or 0.0,
+                                skill=orden["skill"], params=dict(orden.get("params") or {}),
+                                pasos=[tuple(p) for p in orden.get("pasos") or []],
+                                # "agenda": la memoria no aprende de estas (sus parámetros
+                                # ya venían rellenados con el contexto al programarlas).
+                                origen="agenda")
+        resultado = self.ejecutar(interp, dict(interp.params), confirmar=lambda _: True)
+        return resultado.ok, resultado.mensaje
 
     # --- Órdenes de varios pasos ---------------------------------------------------
 
@@ -198,6 +317,7 @@ class Agente:
 
         registrar_episodio(
             {"texto": interp.texto, "skill": VARIOS_PASOS, "pasos_orden": [list(p) for p in pasos],
+             "pasos_interpretados": [list(p) for p in interp.pasos],
              "confianza": interp.confianza, "origen": interp.origen, "pasos": historial,
              "ok": resultado.ok, "mensaje": resultado.mensaje},
             self.ruta_episodios,

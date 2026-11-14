@@ -36,6 +36,7 @@ def main() -> None:
     print(f"Token (cabecera X-Token) guardado en: {origen}", flush=True)
     agente = Agente(usar_llm=LLM_ACTIVO and not args.sin_llm or args.llm_cpu, llm_cpu=args.llm_cpu)
     agente.precargar()
+    agente.iniciar_agenda()   # ejecuta las órdenes programadas a su hora
     estado = agente.estado_llm()
     print("LLM: " + (f"activo ({estado['modelo']})" if estado["activo"] else "desactivado (solo clasificador)")
           + ". Se puede cambiar en marcha con POST /llm.", flush=True)

@@ -44,6 +44,7 @@ from config import (
     LLM_MARGEN_VRAM_MIB,
     LLM_TEMPERATURA_MAX,
     LLM_VRAM_MAX_MIB,
+    MEMORIA_EJEMPLOS,
     RUTA_DATOS,
     RUTA_LLAMA_SERVER,
     RUTA_MODELO_LLM,
@@ -51,6 +52,7 @@ from config import (
 from core.atajos import app_conocida, apps_mencionadas, cargar_atajos, describir_atajos
 from core.estado import normalizar
 from core.gguf import numero_de_capas
+from core.memoria import MemoriaEjemplos
 from core.gpu import leer_gpu, olvidar_cache
 from core.skills.base import Skill
 
@@ -558,12 +560,30 @@ class ResultadoLLM:
 
 class InterpreteLLM:
     def __init__(self, registro: dict[str, Skill], servidor: ServidorLLM | None = None,
-                 ejemplos: list[dict] | None = None, atajos: dict[str, dict] | None = None):
+                 ejemplos: list[dict] | None = None, atajos: dict[str, dict] | None = None,
+                 memoria: MemoriaEjemplos | None | bool = None, n_memoria: int = MEMORIA_EJEMPLOS):
         self.registro = registro
         self.servidor = servidor or ServidorLLM()
         self.ejemplos = cargar_ejemplos() if ejemplos is None else ejemplos
         self.atajos = cargar_atajos() if atajos is None else atajos
         self.esquema = esquema_ordenes(registro)
+        # Tus órdenes pasadas parecidas, como ejemplos extra (memoria=False: sin memoria).
+        if memoria is None:
+            memoria = MemoriaEjemplos() if n_memoria > 0 else False
+        self.memoria = memoria or None
+        self.n_memoria = n_memoria
+
+    def _ejemplos_para(self, texto: str) -> list[dict]:
+        if self.memoria is None:
+            return self.ejemplos
+        fijas = {normalizar(e["frase"]) for e in self.ejemplos}
+        parecidos = [e for e in self.memoria.parecidos(texto, self.n_memoria)
+                     if normalizar(e["frase"]) not in fijas]
+        if parecidos:
+            log.debug("Órdenes parecidas de tu historial (ejemplos para el LLM): %s",
+                      [e["frase"] for e in parecidos])
+        # Después de los fijos: el principio del prompt no cambia y la caché de llama.cpp sirve.
+        return self.ejemplos + parecidos
 
     def disponible(self) -> bool:
         return self.servidor.asegurar()
@@ -594,7 +614,7 @@ class InterpreteLLM:
         texto_contexto, conocidos = self._contexto(texto, contexto)
         if texto_contexto:
             log.debug("Contexto para el LLM:\n%s", texto_contexto)
-        mensajes = construir_mensajes(texto, self.registro, self.ejemplos, texto_contexto)
+        mensajes = construir_mensajes(texto, self.registro, self._ejemplos_para(texto), texto_contexto)
         resultado = self._consultar(mensajes, texto, conocidos)
         # Si la respuesta no es válida (una tecla que no existe, un valor que no está
         # en la frase...), se le enseña el error y se le deja corregirla UNA vez.

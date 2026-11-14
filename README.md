@@ -129,6 +129,8 @@ python .\dispatcher.py
 | `pulsa control s en el bloc de notas`    | Teclas y combinaciones: `enter`, `tab 3 veces`, `flecha abajo`, `control mayúsculas esc`... |
 | `abre la calculadora, escribe 25*4 y pulsa enter` | Orden de varios pasos: te enseña el plan, lo confirmas una vez y lo ejecuta en orden |
 | `busca el horario del mercadona en opera` | Usa los atajos de la app (`core/atajos_apps.json`): control l → escribir → enter |
+| `abre steam dentro de 5 min` / `cierra google a las 17:30` | Programa la orden (te la enseña y la confirmas); a su hora la hace sola. `qué tengo programado`, `cancela la tarea 2` |
+| `juega al cs2` / `hay actualizaciones en steam` | Lanza el juego con el protocolo de Steam (sin clics) / dice qué juegos tienen actualizaciones pendientes |
 | `minimiza discord`                       | La rechaza: no hay skill para minimizar (no la confunde con otra)   |
 | `qué tiempo hace hoy`                    | Lo rechaza: no sabe hacerlo                                        |
 
@@ -163,6 +165,7 @@ Para pararlo, `Ctrl+C` en la terminal del servidor.
 | --------------------------- | ---------------------------------------------------------------- |
 | `data/notas/`               | Notas creadas                                                    |
 | `data/episodios.jsonl`      | Una línea por orden: texto, skill, quién la interpretó (`origen`: clasificador o llm), plan, pasos, si funcionó |
+| `data/agente.db`            | Tareas programadas (SQLite) |
 | `data/ultima_orden.log`     | **Traza de la última orden**: qué entendió el clasificador y el LLM, el plan, cada paso con su duración y los errores con la línea del código. Cada orden nueva la sobrescribe |
 | `data/llm_servidor.log`     | Salida del servidor del LLM (para diagnosticar si no arranca)    |
 | `data/api_token.txt`        | Token de la API (bórralo para generar uno nuevo)                 |

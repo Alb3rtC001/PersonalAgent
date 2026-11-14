@@ -1030,5 +1030,205 @@
   {
     "frase": "pulsa las teclas control shift t",
     "intencion": "pulsar_teclas"
+  },
+  {
+    "frase": "hay actualizaciones en steam",
+    "intencion": "actualizaciones_steam"
+  },
+  {
+    "frase": "hay juegos por actualizar",
+    "intencion": "actualizaciones_steam"
+  },
+  {
+    "frase": "qué juegos tienen actualizaciones",
+    "intencion": "actualizaciones_steam"
+  },
+  {
+    "frase": "dime si hay actualizaciones de juegos",
+    "intencion": "actualizaciones_steam"
+  },
+  {
+    "frase": "mira si hay actualizaciones en steam",
+    "intencion": "actualizaciones_steam"
+  },
+  {
+    "frase": "tengo juegos pendientes de actualizar",
+    "intencion": "actualizaciones_steam"
+  },
+  {
+    "frase": "comprueba las actualizaciones de steam",
+    "intencion": "actualizaciones_steam"
+  },
+  {
+    "frase": "qué juegos hay que actualizar",
+    "intencion": "actualizaciones_steam"
+  },
+  {
+    "frase": "hay alguna actualización pendiente en steam",
+    "intencion": "actualizaciones_steam"
+  },
+  {
+    "frase": "revisa si steam tiene actualizaciones",
+    "intencion": "actualizaciones_steam"
+  },
+  {
+    "frase": "dime qué juegos se tienen que actualizar",
+    "intencion": "actualizaciones_steam"
+  },
+  {
+    "frase": "hay updates en steam",
+    "intencion": "actualizaciones_steam"
+  },
+  {
+    "frase": "algún juego necesita actualizarse",
+    "intencion": "actualizaciones_steam"
+  },
+  {
+    "frase": "mira las actualizaciones de mis juegos",
+    "intencion": "actualizaciones_steam"
+  },
+  {
+    "frase": "steam tiene descargas pendientes",
+    "intencion": "actualizaciones_steam"
+  },
+  {
+    "frase": "qué actualizaciones hay pendientes",
+    "intencion": "actualizaciones_steam"
+  },
+  {
+    "frase": "abre steam y dime si hay actualizaciones",
+    "intencion": "actualizaciones_steam"
+  },
+  {
+    "frase": "comprueba si mis juegos están actualizados",
+    "intencion": "actualizaciones_steam"
+  },
+  {
+    "frase": "están todos los juegos actualizados",
+    "intencion": "actualizaciones_steam"
+  },
+  {
+    "frase": "hay parches nuevos para mis juegos",
+    "intencion": "actualizaciones_steam"
+  },
+  {
+    "frase": "qué tareas tengo programadas",
+    "intencion": "ver_tareas"
+  },
+  {
+    "frase": "qué hay programado",
+    "intencion": "ver_tareas"
+  },
+  {
+    "frase": "lista las tareas programadas",
+    "intencion": "ver_tareas"
+  },
+  {
+    "frase": "enséñame la agenda",
+    "intencion": "ver_tareas"
+  },
+  {
+    "frase": "qué tengo en la agenda",
+    "intencion": "ver_tareas"
+  },
+  {
+    "frase": "dime las tareas pendientes",
+    "intencion": "ver_tareas"
+  },
+  {
+    "frase": "muéstrame lo programado",
+    "intencion": "ver_tareas"
+  },
+  {
+    "frase": "hay algo programado",
+    "intencion": "ver_tareas"
+  },
+  {
+    "frase": "qué órdenes hay programadas",
+    "intencion": "ver_tareas"
+  },
+  {
+    "frase": "ver tareas programadas",
+    "intencion": "ver_tareas"
+  },
+  {
+    "frase": "qué vas a hacer más tarde",
+    "intencion": "ver_tareas"
+  },
+  {
+    "frase": "tengo tareas programadas",
+    "intencion": "ver_tareas"
+  },
+  {
+    "frase": "repasa la agenda",
+    "intencion": "ver_tareas"
+  },
+  {
+    "frase": "lista de tareas",
+    "intencion": "ver_tareas"
+  },
+  {
+    "frase": "qué queda programado para hoy",
+    "intencion": "ver_tareas"
+  },
+  {
+    "frase": "cancela la tarea 3",
+    "intencion": "cancelar_tarea"
+  },
+  {
+    "frase": "cancela la tarea programada 2",
+    "intencion": "cancelar_tarea"
+  },
+  {
+    "frase": "anula la tarea 1",
+    "intencion": "cancelar_tarea"
+  },
+  {
+    "frase": "borra la tarea 4",
+    "intencion": "cancelar_tarea"
+  },
+  {
+    "frase": "elimina la tarea programada 5",
+    "intencion": "cancelar_tarea"
+  },
+  {
+    "frase": "cancela todas las tareas",
+    "intencion": "cancelar_tarea"
+  },
+  {
+    "frase": "anula todas las tareas programadas",
+    "intencion": "cancelar_tarea"
+  },
+  {
+    "frase": "cancela la última tarea",
+    "intencion": "cancelar_tarea"
+  },
+  {
+    "frase": "borra la última tarea programada",
+    "intencion": "cancelar_tarea"
+  },
+  {
+    "frase": "cancela la próxima tarea",
+    "intencion": "cancelar_tarea"
+  },
+  {
+    "frase": "quita la tarea 2",
+    "intencion": "cancelar_tarea"
+  },
+  {
+    "frase": "no hagas la tarea 6",
+    "intencion": "cancelar_tarea"
+  },
+  {
+    "frase": "cancela lo programado",
+    "intencion": "cancelar_tarea"
+  },
+  {
+    "frase": "desprograma la tarea 3",
+    "intencion": "cancelar_tarea"
+  },
+  {
+    "frase": "cancela la tarea número 7",
+    "intencion": "cancelar_tarea"
   }
 ]

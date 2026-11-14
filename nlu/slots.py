@@ -43,6 +43,12 @@ DISPARADORES = {
         "pulsar", "presiona la tecla", "presiona", "aprieta", "dale a la tecla",
         "dale a", "teclea la tecla",
     ],
+    "cancelar_tarea": [
+        "cancela la tarea programada numero", "cancela la tarea programada", "cancela la tarea numero",
+        "cancela la tarea", "anula la tarea programada", "anula la tarea", "borra la tarea programada",
+        "borra la tarea", "elimina la tarea programada", "elimina la tarea", "quita la tarea",
+        "no hagas la tarea", "desprograma la tarea", "cancela", "anula", "borra", "elimina",
+    ],
     "crear_nota": [
         "hazme el favor de anotar", "puedes apuntar esto por mi",
         "puedes crear una nota", "quiero crear una nota",

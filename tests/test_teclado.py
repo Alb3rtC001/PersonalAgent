@@ -116,7 +116,7 @@ def test_pulsar_pide_confirmacion_si_lo_interpreta_el_llm():
 # --- LLM: el texto y las teclas deben ser literales -------------------------
 
 def test_llm_no_puede_reformular_el_texto_a_escribir():
-    llm = InterpreteLLM({"escribir_texto": EscribirTexto()}, servidor=object(), ejemplos=[])
+    llm = InterpreteLLM({"escribir_texto": EscribirTexto()}, servidor=object(), ejemplos=[], memoria=False)
     r = llm.validar({"skill": "escribir_texto", "parametros": {
         "texto": "Hola, ¿cómo estás? Espero que bien"}}, "escribe hola que tal")
     assert r.skill is None

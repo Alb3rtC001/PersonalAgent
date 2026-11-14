@@ -185,6 +185,36 @@ enter" se ejecuta paso a paso. Si algún paso tiene consecuencias (pulsar
 teclas, cerrar...), primero te enseña el plan completo y lo confirmas una
 vez. Si un paso falla, se para ahí y te dice cuál.
 
+## 4c. Programar órdenes para más tarde
+
+Cualquier orden con una expresión de tiempo **al principio o al final** se
+programa en vez de hacerse ya:
+
+| Orden | Cuándo |
+| ----- | ------ |
+| `abre steam dentro de 5 min` | dentro de 5 minutos |
+| `cierra google a las 17:30` | hoy a las 17:30 (mañana, si ya pasó) |
+| `cuelga la llamada de discord en media hora` | dentro de 30 minutos |
+| `mañana a las 9 abre discord` | mañana a las 9:00 |
+| `abre la calculadora, escribe 2+2 y pulsa enter en 10 segundos` | órdenes de varios pasos también |
+
+- **Siempre te pide confirmación al programar**, enseñando lo que hará y a
+  qué hora. A su hora lo hace sin preguntar (no estarás delante).
+- `qué tengo programado` / `cancela la tarea 3` / `cancela la última tarea`
+  / `cancela todas las tareas`.
+- Solo se ejecutan si el agente está en marcha (`dispatcher.py` o
+  `python -m api`). Si estaba apagado y han pasado más de 10 minutos
+  (`TOLERANCIA_RETRASO_TAREAS`), la tarea se marca como perdida.
+- En una nota, la hora es parte del contenido: `apunta que tengo dentista
+  mañana a las 9` crea la nota ahora.
+
+## 4d. Steam
+
+`juega al cs2`, `lanza baldurs gate 3`: busca el juego entre los
+instalados (por nombre o siglas) y lo lanza con el protocolo de Steam, sin
+clics. `hay actualizaciones en steam` lee los archivos de Steam y te dice
+qué juegos tienen una actualización pendiente.
+
 ## 5. Crear una skill en Python
 
 Para acciones que se pueden hacer con código (más robustas que una
@@ -328,7 +358,6 @@ python -m evaluacion.evaluar --ordenes evaluacion\ordenes_control.json   # 30 fr
 ## 9. Lo que todavía no hace
 
 - **Leer la pantalla** ("¿hay alguien en el canal?", "¿qué pone?"): fase 5.
-- **Tareas programadas** ("a las 17:30"): fase 4, pendiente.
 - **Contexto entre órdenes** ("abre WhatsApp" → "escríbele a mamá"): fase 4.
 - **Plantillas frágiles:** las grabaciones repiten clics por coordenadas;
   si la ventana cambia de sitio o de tamaño pueden fallar (fase 5: UI Automation).

@@ -56,7 +56,7 @@ def test_el_contexto_va_al_final_para_no_romper_la_cache():
 # --- Validación de varios pasos ----------------------------------------------
 
 def _llm(servidor=object()):
-    return InterpreteLLM(REGISTRO, servidor=servidor, ejemplos=[], atajos=ATAJOS)
+    return InterpreteLLM(REGISTRO, servidor=servidor, ejemplos=[], atajos=ATAJOS, memoria=False)
 
 
 def _paso(skill, **params):

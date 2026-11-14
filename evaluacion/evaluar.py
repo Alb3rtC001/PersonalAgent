@@ -128,7 +128,7 @@ def main() -> None:
     if args.plantilla:
         opciones["plantilla"] = None if args.plantilla == "nativa" else args.plantilla
     servidor = ServidorLLM(**opciones)
-    llm = InterpreteLLM(REGISTRO, servidor=servidor)
+    llm = InterpreteLLM(REGISTRO, servidor=servidor, memoria=False)  # sin tu historial: medida limpia
     router = Router(REGISTRO, llm=llm, usar_llm=True)
     vias = ["clasificador", "llm", "hibrido"] if args.via == "todas" else [args.via]
 

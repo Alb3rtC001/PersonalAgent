@@ -44,6 +44,8 @@ class Interpretacion:
     origen: str = "clasificador"
     # Órdenes de varias acciones: [(skill, params), ...] en orden (skill = "varios_pasos").
     pasos: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
+    # Órdenes para más tarde: {"cuando": datetime, "expresion": "a las 17:30", "orden": "cierra google"}.
+    programada: dict[str, Any] | None = None
 
 
 VARIOS_PASOS = "varios_pasos"

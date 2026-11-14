@@ -24,6 +24,10 @@ UMBRAL_CONFIANZA = 0.72
 # Segundos que abrir_aplicacion espera a que aparezca la ventana de la app.
 ESPERA_MAX_APERTURA = 30
 
+# Segundos que ejecutar_en_steam espera a ver el juego en marcha (algunos
+# tardan, sobre todo si Steam estaba cerrado).
+ESPERA_MAX_JUEGO = 90
+
 # Segundos que cerrar_aplicacion espera a que la app se cierre tras pedírselo.
 ESPERA_MAX_CIERRE = 10
 
@@ -107,6 +111,16 @@ RUTA_EPISODIOS = RUTA_DATOS / "episodios.jsonl"    # historial de órdenes ejecu
 # Traza detallada (paso a paso, con errores y líneas de código) de la ÚLTIMA
 # orden; cada orden nueva la sobrescribe. Para saber qué pasó si algo falla.
 RUTA_TRAZA = RUTA_DATOS / "ultima_orden.log"
+# Memoria: cuántas de tus órdenes pasadas parecidas (que salieron bien) se le
+# enseñan al LLM como ejemplos en cada consulta. Así aprende de tu uso sin
+# reentrenar. 0 = desactivado.
+MEMORIA_EJEMPLOS = 3
+
+# Base de datos local (SQLite, viene con Python): de momento, las tareas programadas.
+RUTA_BD = RUTA_DATOS / "agente.db"
+# Si el agente estaba apagado cuando tocaba una tarea programada y ha pasado
+# más de esto (segundos), ya no se ejecuta: se marca como perdida.
+TOLERANCIA_RETRASO_TAREAS = 10 * 60
 
 # API HTTP local (python -m api)
 # 127.0.0.1 = solo este PC. Para conectar el móvil por la red de casa: "0.0.0.0".

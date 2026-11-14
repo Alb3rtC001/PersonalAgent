@@ -55,7 +55,7 @@ def test_anclar_corrige_al_texto_del_usuario():
 # --- Validación de la respuesta del LLM ---------------------------------
 
 def _llm():
-    return InterpreteLLM(REGISTRO, servidor=object(), ejemplos=[])
+    return InterpreteLLM(REGISTRO, servidor=object(), ejemplos=[], memoria=False)
 
 
 def test_validar_quita_opcionales_inventados_o_repetidos():

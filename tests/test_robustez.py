@@ -101,7 +101,7 @@ def test_llm_caido_a_mitad_se_trata_como_no_disponible():
         def completar(self, *a, **k):
             raise httpx.ConnectError("se cayó")
 
-    r = InterpreteLLM(REGISTRO, servidor=ServidorQueSeCae(), ejemplos=[]).interpretar("abre discord")
+    r = InterpreteLLM(REGISTRO, servidor=ServidorQueSeCae(), ejemplos=[], memoria=False).interpretar("abre discord")
     assert r.skill is None and r.disponible is False
 
 

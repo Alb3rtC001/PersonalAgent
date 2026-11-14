@@ -13,6 +13,8 @@ GET    /episodios?limite=20   últimas órdenes registradas
 POST   /ordenes               {"texto": "..."}               → Respuesta
 POST   /ordenes/{id}          {"dato": "..."} o {"confirmar": true|false} → Respuesta
 DELETE /ordenes/{id}          descartar una orden pendiente
+GET    /tareas                tareas programadas ("abre steam a las 17:30") y su estado
+DELETE /tareas/{id}           cancelar una tarea programada
 GET    /llm                   estado del LLM (activo, cargado, modelo, gpu)
 POST   /llm                   {"activo": false|true} desactivar (libera la VRAM) o activar
 
@@ -144,6 +146,19 @@ def crear_app(agente: Agente | None = None, token: str | None = None) -> FastAPI
     @app.get("/salud")
     def salud() -> dict[str, Any]:
         return {"ok": True, "skills": len(agente.registro)}
+
+    @app.get("/tareas", dependencies=protegido)
+    def tareas(limite: int = 20) -> list[dict[str, Any]]:
+        """Últimas tareas programadas (pendientes, hechas, fallidas, canceladas o perdidas)."""
+        return [{"id": t.id, "texto": t.texto, "cuando": t.cuando.isoformat(), "plan": t.descripcion,
+                 "estado": t.estado, "resultado": t.resultado}
+                for t in agente.agenda.ultimas(max(1, min(limite, 200)))]
+
+    @app.delete("/tareas/{id_}", dependencies=protegido)
+    def cancelar_tarea(id_: int) -> dict[str, bool]:
+        if not agente.agenda.cancelar(id_):
+            raise HTTPException(status_code=404, detail="No hay ninguna tarea pendiente con ese id.")
+        return {"ok": True}
 
     @app.get("/llm", dependencies=protegido)
     def estado_llm() -> dict[str, Any]:
