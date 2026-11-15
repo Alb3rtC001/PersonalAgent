@@ -13,7 +13,7 @@ from __future__ import annotations
 from core import control
 from core.seguridad import activar_modo_seguro, modo_seguro, registrar_actividad, ultima_actividad
 
-AYUDA = ("Comandos: 'llm' / 'llm on' / 'llm off', 'seguro' / 'seguro on' / 'seguro off', "
+AYUDA = ("Comandos: 'grabar <nombre>' (en la interfaz), 'llm' / 'llm on' / 'llm off', 'seguro' / 'seguro on' / 'seguro off', "
          "'actividad', 'reanudar', 'ayuda', 'salir'.")
 
 

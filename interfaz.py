@@ -24,6 +24,7 @@ También acepta 'llm', 'llm on', 'llm off' y 'salir'.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import queue
 import threading
@@ -36,7 +37,10 @@ from core import control
 from core.agente import Agente, limpiar_texto
 from core.comandos import AYUDA, atajo_legible, describir_llm, ejecutar_comando, iniciar_atajo_panico, pausar_por_panico  # noqa: E501
 from core.seguridad import escuchar, registrar_actividad
+from core.skills.grabada import SkillGrabada, guardar_grabacion, nombre_valido
 from core.traza import configurar_logs
+from recorder.grabadora_semantica import GrabadoraSemantica, marcar_parametro, textos_grabados
+from recorder.grabar import describir_paso as describir_paso_grabado
 
 MAX_MINUTOS, MAX_SEGUNDOS = 99, 60
 
@@ -263,6 +267,9 @@ class Interfaz:
         if texto.lower() == "salir":
             self.raiz.destroy()
             return
+        if texto.lower().split()[0] == "grabar":
+            self.grabar(texto[6:].strip())
+            return
         respuesta = ejecutar_comando(self.agente, texto, "interfaz")
         if respuesta is not None:
             self.escribir(f"> {texto}", "orden")
@@ -322,6 +329,64 @@ class Interfaz:
                           "(tampoco las tareas programadas) hasta que pulses Reanudar.", "error")
         self._actualizar_boton()
 
+    # --- Grabadora semántica ---------------------------------------------------------
+
+    def grabar(self, nombre: str) -> None:
+        """'grabar <nombre>': haces la acción, F9 para terminar, y se convierte en skill."""
+        nombre = nombre_valido(nombre or simpledialog.askstring(
+            "Grabar una acción", "Nombre de la acción (p. ej. buscar en spotify):", parent=self.raiz) or "")
+        if not nombre:
+            return
+        descripcion = simpledialog.askstring(
+            "Grabar una acción", "¿Qué hace? (lo leerá el LLM para saber cuándo usarla):",
+            parent=self.raiz) or ""
+        self.escribir(f"> grabar {nombre}", "orden")
+        self.escribir("● GRABANDO: haz la acción con el ratón y el teclado; pulsa F9 para terminar. "
+                      "(No se graba nada en esta ventana, en contraseñas ni en ventanas prohibidas.)", "error")
+        self.grabadora = GrabadoraSemantica()
+        self.grabadora.iniciar()
+        self._ocupar(True)
+        self.aviso.mostrar(nombre, prefijo="● GRABANDO: ", pie="F9 para terminar")
+
+        def esperar():
+            self.grabadora.esperar_fin()
+            self.raiz.after(0, self._fin_grabacion, nombre, descripcion)
+        threading.Thread(target=esperar, daemon=True, name="espera-grabacion").start()
+
+    def _fin_grabacion(self, nombre: str, descripcion: str) -> None:
+        pasos = self.grabadora.detener()
+        self.aviso.ocultar(0)
+        self._ocupar(False)
+        if not pasos:
+            self.escribir("✘ No se ha grabado nada.", "error")
+            return
+        self.escribir(f"■ Grabación terminada: {len(pasos)} paso(s).", "sistema")
+        for i, paso in enumerate(pasos, 1):
+            self.escribir(f"  {i}. {describir_paso_grabado(paso)}", "aviso")
+        for aviso in self.grabadora.avisos:
+            self.escribir(f"  ⚠ {aviso}", "error")
+
+        parametros = {}
+        textos = textos_grabados(pasos)
+        if textos:
+            lista = "\n".join(f"{n}. '{t}'" for n, (_, t) in enumerate(textos, 1))
+            eleccion = simpledialog.askinteger(
+                "¿Qué cambia cada vez?",
+                f"¿Alguno de estos textos es el que cambia cada vez (el parámetro)?\n\n{lista}\n\n0 = ninguno",
+                parent=self.raiz, minvalue=0, maxvalue=len(textos), initialvalue=1)
+            if eleccion:
+                parametro = nombre_valido(simpledialog.askstring(
+                    "Parámetro", "Nombre del parámetro (p. ej. cancion):", parent=self.raiz) or "") or "texto"
+                pasos = marcar_parametro(pasos, textos[eleccion - 1][0], parametro)
+                parametros[parametro] = simpledialog.askstring(
+                    "Parámetro", f"¿Qué es '{parametro}'? (p. ej. el nombre de la canción):",
+                    parent=self.raiz) or parametro
+        archivo = guardar_grabacion(nombre, descripcion, pasos, parametros)
+        self.agente.anadir_skill(SkillGrabada(json.loads(archivo.read_text(encoding="utf-8"))))
+        uso = f" (con {', '.join(parametros)})" if parametros else ""
+        self.escribir(f"✔ Skill '{nombre}' guardada y disponible ya{uso}. Pídela con tus palabras; "
+                      f"como es de riesgo alto, te pedirá confirmación.", "ok")
+
     def parar_por_atajo(self) -> None:
         """El atajo global solo para (reanudar, con el botón o el comando 'reanudar')."""
         if not control.en_pausa():
@@ -367,12 +432,13 @@ class Aviso:
         self.ventana.withdraw()
         self._ocultar_id = None
 
-    def mostrar(self, texto: str) -> None:
+    def mostrar(self, texto: str, prefijo: str = "🤖 El agente está actuando: ", pie: str | None = None) -> None:
         if self._ocultar_id:
             self.raiz.after_cancel(self._ocultar_id)
             self._ocultar_id = None
         texto = texto if len(texto) <= 70 else texto[:67] + "…"
-        self.etiqueta.configure(text=f"🤖 El agente está actuando: {texto}\n    {atajo_legible()} para parar")
+        pie = pie or f"{atajo_legible()} para parar"
+        self.etiqueta.configure(text=f"{prefijo}{texto}\n    {pie}")
         self.ventana.update_idletasks()
         ancho = self.ventana.winfo_reqwidth()
         x = (self.raiz.winfo_screenwidth() - ancho) // 2

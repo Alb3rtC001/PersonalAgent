@@ -90,6 +90,20 @@ class Agente:
             return self.router.estado_llm()
         return {"activo": False, "cargado": False, "modelo": None, "gpu": None}
 
+    def anadir_skill(self, skill: Skill) -> None:
+        """
+        Añade (o sustituye) una skill en marcha, p. ej. una recién grabada: el LLM
+        la ve en su catálogo desde la siguiente orden, sin reiniciar. (El
+        clasificador no la conoce hasta que se le añadan frases y se reentrene.)
+        """
+        with self._lock:
+            self.registro[skill.nombre] = skill
+            llm = getattr(self.router, "llm", None)
+            if llm is not None and hasattr(llm, "esquema"):
+                from core.llm import esquema_ordenes
+                llm.esquema = esquema_ordenes(self.registro)
+        registrar_actividad(self.canal, f"Skill nueva disponible: {skill.nombre}.")
+
     # --- Por pasos (API) -----------------------------------------------------
 
     def interpretar(self, texto: str, programar_en: timedelta | None = None) -> Interpretacion:

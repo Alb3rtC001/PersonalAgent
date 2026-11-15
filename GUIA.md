@@ -107,6 +107,32 @@ python .\dispatcher.py --sin-llm  # solo el clasificador: no usa la GPU
 
 ## 4. Enseñar una acción nueva por demostración (sin programar)
 
+### Con la grabadora semántica (recomendado)
+
+En la interfaz escribe `grabar` (o `grabar buscar en spotify`):
+
+1. Te pide el nombre y **qué hace**: esa frase es la que lee el LLM para
+   saber cuándo usarla ("Busca una canción en Spotify y la reproduce").
+2. Haz la acción con el ratón y el teclado. Arriba verás "● GRABANDO".
+   **F9** termina.
+3. Te enseña los pasos y te pregunta qué texto escrito **cambia cada vez**
+   (el parámetro: la canción, el número...).
+4. Ya está: pídela con tus palabras ("pon bohemian rhapsody en spotify").
+   Es de riesgo alto, así que te pedirá confirmación.
+
+Graba **qué** pulsas (el botón "Siete", el cuadro "Buscar"), no dónde:
+sigue funcionando aunque muevas la ventana o cambie de tamaño. No graba
+contraseñas, ventanas prohibidas ni la ventana del agente. Se guarda en
+`recorder/grabadas/<nombre>.json` (lo puedes editar o borrar). Desde la
+consola: `python -m recorder.grabar`.
+
+Consejos: empieza con la app ya abierta; usa atajos de teclado cuando la
+app los tenga (son más fiables que los clics); si un paso falla al
+reproducir, el mensaje dice cuál y la traza (`data/ultima_orden.log`) da el
+detalle.
+
+### Con el grabador antiguo (plantillas por coordenadas)
+
 Para acciones que haces con teclado y ratón (p. ej. "buscar X en Spotify").
 
 ```powershell

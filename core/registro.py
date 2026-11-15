@@ -10,6 +10,7 @@ Si una plantilla tiene el mismo nombre que una skill nativa, gana la nativa.
 
 from core.skills.abrir_aplicacion import AbrirAplicacion
 from core.skills.base import Skill
+from core.skills.grabada import cargar_skills_grabadas
 from core.skills.cerrar_aplicacion import CerrarAplicacion
 from core.skills.crear_nota import CrearNota
 from core.skills.plantilla import cargar_skills_plantilla
@@ -34,6 +35,9 @@ SKILLS_NATIVAS: list[Skill] = [
 
 def construir_registro() -> dict[str, Skill]:
     registro: dict[str, Skill] = {s.nombre: s for s in cargar_skills_plantilla()}
+    # Grabaciones semánticas (recorder/grabadas/*.json); si se llaman igual que
+    # una plantilla antigua, gana la grabación.
+    registro.update({s.nombre: s for s in cargar_skills_grabadas()})
     registro.update({s.nombre: s for s in SKILLS_NATIVAS})
     return registro
 

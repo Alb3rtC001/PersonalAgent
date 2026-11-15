@@ -133,7 +133,8 @@ Las confirmaciones y los datos que falten salen en ventanas emergentes.
   de contraseñas, banca, terminales, el registro…
 - **Registro de actividad** (`data/actividad.log`): una línea por acción, con quién la pidió
   y cómo acabó. Comando `actividad` (últimas 15).
-- Comandos: `llm`, `seguro`, `actividad`, `reanudar`, `ayuda`, `salir`.
+- Comandos: `grabar <nombre>` (enseñarle una acción nueva, ver GUIA.md §4), `llm`, `seguro`,
+  `actividad`, `reanudar`, `ayuda`, `salir`.
 
 ## 4b. Usar el agente desde la consola (sin servidor)
 

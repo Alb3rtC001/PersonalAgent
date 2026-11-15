@@ -263,8 +263,23 @@ Cada fase termina con algo que funciona de punta a punta.
     plantillas actúan sobre contraseñas, banca, terminales, registro...
   - ✅ Registro de actividad legible (`data/actividad.log`, comando
     `actividad`, `GET /actividad`) y `POST /pausa` en la API.
-- **Fase 5 — Grabadora semántica + LLM (decidido; `uiautomation` 2.0.29 y
-  `comtypes` 1.4.17 instalados).** UI Automation (CPU,
+- **Fase 5 — Grabadora semántica + LLM (en curso).**
+  - ✅ Grabadora semántica (`recorder/grabadora_semantica.py`, `core/uia.py`):
+    cada clic se guarda como el control pulsado (identificador, nombre,
+    tipo) y su ventana; lo escrito, con el campo que tenía el foco; los
+    atajos, como teclas. Nunca graba contraseñas, ventanas prohibidas ni la
+    propia ventana del agente. F9 termina.
+  - ✅ Skills grabadas (`core/skills/grabada.py`, `recorder/grabadas/*.json`):
+    al reproducir busca cada control por su identidad (probado: la ventana
+    movida de sitio y el resultado correcto). Riesgo alto por defecto.
+  - ✅ En la interfaz, `grabar <nombre>`: graba, eliges el parámetro y la
+    skill está disponible al momento; el LLM la usa por su descripción
+    ("suma 4 a siete" → `sumar_a_siete(numero=4)`). También
+    `python -m recorder.grabar`.
+  - ⏳ Lo que sigue: lectura de pantalla para preguntas, campo destino de
+    `escribir_texto` con UI Automation, plan del LLM a partir de los
+    controles de una app nueva.
+  Diseño original: UI Automation (CPU,
   sin GPU): la grabadora guarda el control pulsado (tipo, nombre,
   AutomationId) y los atajos usados, no coordenadas; con una sola
   demostración el LLM la convierte en una skill con parámetros; al
