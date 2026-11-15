@@ -284,6 +284,27 @@ Nunca pulsa botones de `CONTROLES_PROHIBIDOS` (comprar, pagar, borrar,
 desinstalar, cerrar sesión...): te pide que lo hagas tú. Si la orden la ha
 interpretado el LLM, te pide confirmación antes.
 
+- Solo pulsa lo que se ve de verdad: Steam tiene un segundo botón JUGAR
+  escondido en una cabecera; antes de pulsar comprueba que en ese punto de
+  la pantalla está el propio botón.
+- Si varios encajan igual de bien y ninguno se llama exactamente así
+  ("Slay the Spire 2 [public-beta]" y "Slay the Spire 2 Demo"), te pregunta
+  cuál. Gana el que contiene todo lo que dices: "slay the spire 2" no elige
+  "Slay the Spire" (el primer juego).
+- Después comprueba que la ventana ha cambiado. Si no ha cambiado nada, no
+  dice "Pulsado": te dice que el clic no ha llegado.
+
+Ejemplo completo en Steam: `quiero que abras steam, busques slay the spire 2
+e inicies el juego` → abre Steam, Biblioteca, escribe en el buscador y pulsa
+el juego en la lista (se queda en su página); `dale a jugar` pulsa el botón
+verde. Si solo quieres jugar, `juega al slay the spire 2` lo lanza
+directamente (`ejecutar_en_steam`), sin clics.
+
+**Ojo con la memoria:** las órdenes que salen bien se guardan en
+`data/episodios.jsonl` y el LLM las copia como ejemplos. Si una orden se dio
+por buena sin serlo, la volverá a hacer igual: márcala como fallida
+(`"ok": false`) en ese archivo.
+
 **Elegir el campo** (`escribir_texto` con `campo`): `escribe pizza en el
 buscador de chrome`, `en telegram escribe hola en el campo del mensaje`.
 Si no dices el campo, escribe donde está el cursor (si está en un cuadro

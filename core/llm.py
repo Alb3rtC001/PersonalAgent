@@ -44,6 +44,7 @@ from config import (
     LLM_MARGEN_VRAM_MIB,
     LLM_TEMPERATURA_MAX,
     LLM_VRAM_MAX_MIB,
+    LLM_RESERVA_RESPUESTA,
     MEMORIA_EJEMPLOS,
     RUTA_DATOS,
     RUTA_LLAMA_SERVER,
@@ -52,7 +53,7 @@ from config import (
 from core.atajos import app_conocida, apps_mencionadas, cargar_atajos, describir_atajos, valores_conocidos
 from core.estado import normalizar
 from core.gguf import numero_de_capas
-from core.memoria import MemoriaEjemplos
+from core.memoria import MemoriaEjemplos, _trigramas
 from core.gpu import leer_gpu, olvidar_cache
 from core.skills.base import Skill
 
@@ -405,6 +406,17 @@ class ServidorLLM:
     def permitir_reintento(self) -> None:
         self._no_reintentar_hasta = 0.0
 
+    def contar_tokens(self, mensajes: list[dict]) -> int | None:
+        """Tokens aproximados de una consulta (contenido de los mensajes), o None si no se puede."""
+        try:
+            r = httpx.post(f"http://127.0.0.1:{self.puerto}/tokenize",
+                           json={"content": "\n".join(m["content"] for m in mensajes)}, timeout=10)
+            r.raise_for_status()
+            # + unos pocos tokens por mensaje de la plantilla de chat.
+            return len(r.json()["tokens"]) + 8 * len(mensajes)
+        except (httpx.HTTPError, KeyError, ValueError):
+            return None
+
     def completar(self, mensajes: list[dict], esquema: dict, max_tokens: int = 1500) -> str:
         self._ultimo_uso = time.monotonic()
         r = httpx.post(f"{self.url}/v1/chat/completions", timeout=60, json={
@@ -527,6 +539,37 @@ def cargar_ejemplos(ruta: Path = RUTA_EJEMPLOS) -> list[dict]:
     return json.loads(ruta.read_text(encoding="utf-8"))
 
 
+def _parecido(a: frozenset, b: frozenset) -> float:
+    union = len(a | b)
+    return len(a & b) / union if union else 0.0
+
+
+def seleccionar_ejemplos(texto: str, ejemplos: list[dict], maximo: int) -> list[dict]:
+    """
+    Los ejemplos que vienen al caso, como mucho `maximo`:
+    1. una parte FIJA, igual en todas las consultas (así llama.cpp reutiliza su
+       caché y no se vuelve más lento): los de "ninguna" (enseñan a rechazar) y
+       el primero de cada skill (que vea el formato de todas), en el orden del archivo;
+    2. al final, los más parecidos a la orden hasta llenar los huecos, del menos
+       al más parecido (el más parecido queda justo antes de la orden).
+    """
+    if len(ejemplos) <= maximo:
+        return ejemplos
+    fijos: list[int] = []
+    vistas: set[str] = set()
+    for i, e in enumerate(ejemplos):
+        skills = {paso["skill"] for paso in pasos_de(e)}
+        if e.get("skill") == "ninguna" or not skills <= vistas:
+            fijos.append(i)
+            vistas |= skills
+    fijos = fijos[:maximo]
+    objetivo = _trigramas(texto)
+    resto = sorted((i for i in range(len(ejemplos)) if i not in fijos),
+                   key=lambda i: -_parecido(objetivo, _trigramas(ejemplos[i]["frase"])))
+    extra = resto[:maximo - len(fijos)]
+    return [ejemplos[i] for i in fijos] + [ejemplos[i] for i in reversed(extra)]
+
+
 def pasos_de(ejemplo: dict) -> list[dict]:
     """Un ejemplo puede ser de un paso ({"skill", "parametros"}) o de varios ({"pasos": [...]})."""
     if "pasos" in ejemplo:
@@ -627,20 +670,43 @@ class InterpreteLLM:
         self.memoria = memoria or None
         self.n_memoria = n_memoria
 
-    def _ejemplos_para(self, texto: str) -> list[dict]:
+    def _ejemplos_para(self, texto: str, maximo: int | None = None) -> list[dict]:
+        fijos = self.ejemplos if maximo is None else seleccionar_ejemplos(texto, self.ejemplos, maximo)
         if self.memoria is None:
-            return self.ejemplos
+            return fijos
         fijas = {normalizar(e["frase"]) for e in self.ejemplos}
         parecidos = [e for e in self.memoria.parecidos(texto, self.n_memoria)
                      if normalizar(e["frase"]) not in fijas]
         if parecidos:
             log.debug("Órdenes parecidas de tu historial (ejemplos para el LLM): %s",
                       [e["frase"] for e in parecidos])
-        # Después de los fijos: el principio del prompt no cambia y la caché de llama.cpp sirve.
-        return self.ejemplos + parecidos
+        # Después de los fijos: los más parecidos quedan justo antes de la orden.
+        return fijos + parecidos
 
     def disponible(self) -> bool:
         return self.servidor.asegurar()
+
+    def _mensajes_que_caben(self, texto: str, texto_contexto: str) -> list[dict]:
+        """
+        La consulta con todos los ejemplos; si no cabe en el contexto del modelo
+        (dejando LLM_RESERVA_RESPUESTA para la respuesta), con menos ejemplos.
+        Sin esto, un prompt demasiado largo da un error 400 o una respuesta cortada.
+        """
+        limite = getattr(self.servidor, "contexto", None)
+        mensajes = construir_mensajes(texto, self.registro, self._ejemplos_para(texto), texto_contexto)
+        contar = getattr(self.servidor, "contar_tokens", None)
+        if not limite or contar is None:
+            return mensajes
+        maximo = len(self.ejemplos)
+        while True:
+            tokens = contar(mensajes)
+            if tokens is None or tokens <= limite - LLM_RESERVA_RESPUESTA or maximo <= 0:
+                return mensajes
+            maximo = max(0, min(maximo, len(self.ejemplos)) - 4)
+            log.debug("La consulta ocupa %d tokens (contexto %d): la repito con %d ejemplos.",
+                      tokens, limite, maximo)
+            mensajes = construir_mensajes(texto, self.registro, self._ejemplos_para(texto, maximo),
+                                          texto_contexto)
 
     def _contexto(self, texto: str, contexto: dict | None) -> tuple[str, set[str]]:
         """
@@ -668,7 +734,7 @@ class InterpreteLLM:
         texto_contexto, conocidos = self._contexto(texto, contexto)
         if texto_contexto:
             log.debug("Contexto para el LLM:\n%s", texto_contexto)
-        mensajes = construir_mensajes(texto, self.registro, self._ejemplos_para(texto), texto_contexto)
+        mensajes = self._mensajes_que_caben(texto, texto_contexto)
         resultado = self._consultar(mensajes, texto, conocidos)
         # Si la respuesta no es válida (una tecla que no existe, un valor que no está
         # en la frase...), se le enseña el error y se le deja corregirla UNA vez.

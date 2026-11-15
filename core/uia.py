@@ -212,13 +212,70 @@ def controles_pulsables(hwnd: int, tiempo_max: float = 3.0) -> list:
     return encontrados
 
 
-def ventana_de_punto(x: int, y: int) -> int | None:
-    """hwnd de la ventana principal que hay bajo un punto (para no hacer clic sobre otra)."""
+def se_ve_en_su_centro(control, niveles: int = 4) -> bool:
+    """
+    ¿Lo que hay en el centro del control es el propio control (o algo suyo)?
+    Descarta los que la app tiene "escondidos" sin decirlo: en Steam, la
+    cabecera fija con otro botón JUGAR que solo aparece al bajar la página.
+    """
     if not UIA_DISPONIBLE:
-        return None
+        return True
     try:
-        control = auto.ControlFromPoint(x, y)
-        return (control.GetTopLevelControl() or control).NativeWindowHandle if control else None
+        x, y = centro(control)
+        encima = auto.ControlFromPoint(x, y)
+        if encima is None:
+            return False
+        # El punto puede caer en un hijo (el texto dentro del botón) o en el padre.
+        for a, b in ((encima, control), (control, encima)):
+            actual = a
+            for _ in range(niveles + 1):
+                if actual is None:
+                    break
+                if auto.ControlsAreSame(actual, b):
+                    return True
+                actual = actual.GetParentControl()
+        # Los diálogos de algunas apps (el "¿Salir del juego?" de Steam) son otra
+        # ventana y UI Automation da otro objeto para el mismo botón: vale si en
+        # ese punto hay algo con el mismo nombre y exactamente el mismo sitio.
+        return _mismo_control(encima, control, niveles)
+    except Exception:
+        return False
+
+
+def _mismo_control(encima, control, niveles: int) -> bool:
+    def rect(c):
+        r = c.BoundingRectangle
+        return r.left, r.top, r.right, r.bottom
+    nombre, sitio = (control.Name or "").strip(), rect(control)
+    if not nombre:
+        return False
+    actual = encima
+    for _ in range(niveles + 1):
+        if actual is None:
+            return False
+        if (actual.Name or "").strip() == nombre and rect(actual) == sitio:
+            return True
+        actual = actual.GetParentControl()
+    return False
+
+
+def huella(hwnd: int) -> str:
+    """Resumen de lo que se ve en la ventana, para saber si un clic ha cambiado algo."""
+    return texto_de_ventana(hwnd, max_caracteres=20000, tiempo_max=3.0)
+
+
+def ventana_de_punto(x: int, y: int) -> int | None:
+    """hwnd de la ventana de nivel superior que hay bajo un punto (para no hacer clic sobre otra)."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        user32 = ctypes.windll.user32
+        user32.WindowFromPoint.restype = wintypes.HWND
+        user32.WindowFromPoint.argtypes = [wintypes.POINT]
+        user32.GetAncestor.restype = wintypes.HWND
+        user32.GetAncestor.argtypes = [wintypes.HWND, ctypes.c_uint]
+        hwnd = user32.WindowFromPoint(wintypes.POINT(x, y))
+        return user32.GetAncestor(hwnd, 2) or None if hwnd else None    # GA_ROOT
     except Exception:
         return None
 

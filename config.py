@@ -113,7 +113,7 @@ RUTA_MODELO_LLM = RUTA_MODELOS / "qwen3-8b" / "Qwen3-8B-Q4_K_M.gguf"
 LLM_PLANTILLA_CHAT = "chatml"
 LLM_PUERTO = 8766            # solo en 127.0.0.1
 LLM_CAPAS_GPU = 79           # 99 = todo el modelo en la GPU; 0 = solo CPU (mucho más lento)
-LLM_CONTEXTO = 4096
+LLM_CONTEXTO = 6144
 LLM_ESPERA_ARRANQUE = 120    # segundos máximos para cargar el modelo
 # Opciones de memoria de llama-server (medido con Qwen3-8B en la RTX 3060 Ti):
 # una conversación a la vez (-np 1), flash attention y caché KV en 8 bits.
@@ -161,6 +161,11 @@ RUTA_ACTIVIDAD = RUTA_DATOS / "actividad.log"
 # enseñan al LLM como ejemplos en cada consulta. Así aprende de tu uso sin
 # reentrenar. 0 = desactivado.
 MEMORIA_EJEMPLOS = 3
+# Tokens que se dejan libres en LLM_CONTEXTO para la respuesta. Si la consulta (con
+# todos los ejemplos de core/llm_ejemplos.json) no cabe, se pasan solo los que vienen
+# al caso: los de "ninguna", el primero de cada skill y los más parecidos a la orden.
+# Así el prompt nunca se sale del contexto aunque añadas muchos ejemplos.
+LLM_RESERVA_RESPUESTA = 900
 
 # Base de datos local (SQLite, viene con Python): de momento, las tareas programadas.
 RUTA_BD = RUTA_DATOS / "agente.db"

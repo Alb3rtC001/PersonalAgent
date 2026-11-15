@@ -307,6 +307,18 @@ Cada fase termina con algo que funciona de punta a punta.
     `botones` y `campos` además de `atajos`. Probado de verdad: "busca en
     steam el juego slay the spire 2" → abrir Steam → clic en "Biblioteca"
     → escribir en "Buscar por nombre"; el campo y la lista lo confirman.
+    Solo pulsa controles que se ven de verdad (en su centro está el propio
+    control: Steam tiene un JUGAR escondido en una cabecera), pregunta si
+    hay varios igual de buenos y comprueba que la ventana cambia; si no, no
+    da el clic por bueno. Probado: "dale a jugar" lanza el juego.
+  - ✅ El prompt del LLM siempre cabe: `LLM_CONTEXTO` = 6144 y, si aun así
+    no cabe (muchos ejemplos), se pasan solo los que vienen al caso
+    (`seleccionar_ejemplos`: los de "ninguna", el primero de cada skill y
+    los más parecidos). Antes, con 4096, una orden con contexto de Steam y
+    memoria daba error 400 y caía al clasificador.
+  - Lección: un éxito falso envenena la memoria (el LLM copia la orden
+    "que salió bien"). La verificación honesta de cada skill es lo que
+    protege el aprendizaje de la fase 6.
   - ⏳ Lo que sigue: recordar el campo elegido por app (`data/campos.json`)
     y el plan del LLM a partir de los controles de una app nueva.
   Diseño original: UI Automation (CPU,
@@ -512,18 +524,18 @@ Salvaguardas sobre la respuesta del LLM:
 
 ### Resultados (`python -m evaluacion.evaluar`)
 
-Con Qwen3-8B. `ordenes.json` (76 frases tras la fase 5, usado para
+Con Qwen3-8B. `ordenes.json` (79 frases tras la fase 5, usado para
 ajustar; incluye órdenes de varios pasos, `leer_pantalla` y `campo`) y
 `ordenes_control.json` (30 frases que no se usaron para ajustar nada):
 
 | Vía               | Ajuste: skill + parámetros | Control: skill + parámetros | Tiempo por frase |
 | ----------------- | :------------------------: | :-------------------------: | ---------------- |
-| Solo clasificador | 46 %                       | —                           | < 2 ms           |
-| Solo LLM          | 95 %                       | —                           | ~0,55 s          |
-| Híbrido           | 97 % (74/76)               | 100 % (30/30)               | 0 ms (conocidas) – ~0,5–1,9 s (nuevas) |
+| Solo clasificador | 46 % (con 76 frases)       | —                           | < 2 ms           |
+| Solo LLM          | 95 % (con 76 frases)       | —                           | ~0,55 s          |
+| Híbrido           | 99 % (78/79)               | 100 % (30/30)               | 0 ms (conocidas) – ~0,6 s mediana (nuevas) |
 
-Fallos del híbrido: "cierra todas las ventanas de chrome" (lo rechaza) y
-"busca recetas de lentejas en google" (se queda en el primer paso). En
+Fallo del híbrido: "busca recetas de lentejas en google" (se queda en el
+primer paso). En
 `evaluacion/*.json` un valor `"*"` acepta cualquier texto (la pregunta de
 `leer_pantalla`, que el LLM puede reformular).
 

@@ -60,12 +60,13 @@
   "Steam": {
     "nombres": ["steam"],
     "botones": {
-      "ir a la biblioteca de juegos que tienes (para buscar uno: después escribir su nombre en el campo 'Buscar por nombre')": "Biblioteca",
+      "ir a la biblioteca para BUSCAR un juego o ver su página (si el usuario solo quiere jugar o ponerlo, mejor ejecutar_en_steam, que lo lanza directamente)": "Biblioteca",
+      "iniciar el juego cuya página ya está abierta: el botón verde de jugar o 'play' (solo si el usuario pide jugar, iniciarlo o darle al play)": "JUGAR",
       "ir a la tienda": "Tienda",
       "ir a la comunidad": "Comunidad"
     },
     "campos": {
-      "buscar un juego en la biblioteca (está tras pulsar 'Biblioteca')": "Buscar por nombre"
+      "buscar un juego en la biblioteca (tras pulsar 'Biblioteca'). Después NO pulses Enter (no hace nada): para abrir la página del juego, hacer_clic con su nombre": "Buscar por nombre"
     }
   },
   "Explorador de archivos": {

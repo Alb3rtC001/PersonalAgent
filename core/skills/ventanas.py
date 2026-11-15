@@ -116,25 +116,49 @@ def _recordada(ventanas: list[dict]) -> dict | None:
     return None
 
 
-def interpretar_eleccion(respuesta: str, opciones: list[dict]) -> dict | None:
-    """'2', 'la 2', 'la segunda' o parte del título → la ventana; None si no está claro."""
+def elegir_opcion(respuesta: str, nombres: list[str]) -> int | None:
+    """
+    Índice de la opción que dice el usuario, o None si no está claro:
+    el nombre exacto ("slay the spire 2"), un número u ordinal ("2", "la 2",
+    "la segunda") o palabras que solo estén en una opción ("la de youtube").
+    """
     r = normalizar(respuesta or "").strip()
     if not r:
         return None
-    ordinales = {"primera": 1, "segunda": 2, "tercera": 3, "cuarta": 4, "quinta": 5}
-    numeros = [int(x) for x in re.findall(r"\d+", r)] + [n for p, n in ordinales.items() if p in r.split()]
-    if len(numeros) == 1 and 1 <= numeros[0] <= len(opciones):
-        return opciones[numeros[0] - 1]
-    # "la de youtube", "la del correo": las palabras con significado, todas en el título.
-    palabras = [p for p in re.findall(r"\w+", r) if len(p) > 2 and p not in PALABRAS_VACIAS]
-    if not palabras:
+    exactas = [i for i, n in enumerate(nombres) if normalizar(n).strip() == r]
+    if len(exactas) == 1:
+        return exactas[0]
+    palabras = re.findall(r"\w+", r)
+    ordinales = {"primera": 1, "primero": 1, "segunda": 2, "segundo": 2, "tercera": 3, "tercero": 3,
+                 "cuarta": 4, "cuarto": 4, "quinta": 5, "quinto": 5}
+    # Solo un número si la respuesta es "un número" (en "slay the spire 2" el 2 es del nombre).
+    if all(p.isdigit() or p in ordinales or p in RELLENO_NUMERO for p in palabras):
+        numeros = [int(p) for p in palabras if p.isdigit()] + [ordinales[p] for p in palabras if p in ordinales]
+        if len(numeros) == 1 and 1 <= numeros[0] <= len(nombres):
+            return numeros[0] - 1
         return None
-    coinciden = [v for v in opciones
-                 if all(p in re.findall(r"\w+", normalizar(v.get("titulo", ""))) for p in palabras)]
+    significativas = [p for p in palabras if len(p) > 2 and p not in PALABRAS_VACIAS]
+    if not significativas:
+        return None
+    coinciden = [i for i, n in enumerate(nombres)
+                 if all(p in re.findall(r"\w+", normalizar(n)) for p in significativas)]
     return coinciden[0] if len(coinciden) == 1 else None
 
 
-PALABRAS_VACIAS = {"las", "los", "del", "una", "uno", "que", "ventana", "esa", "esta", "usa", "uso", "pon"}
+def interpretar_eleccion(respuesta: str, opciones: list[dict]) -> dict | None:
+    """'2', 'la segunda' o parte del título → la ventana; None si no está claro."""
+    i = elegir_opcion(respuesta, [v.get("titulo") or "" for v in opciones])
+    return None if i is None else opciones[i]
+
+
+def preguntar(pregunta: str) -> str | None:
+    """Pregunta al usuario si hay a quién (None si no: tareas programadas, API)."""
+    return None if _preguntar is None else _preguntar(pregunta)
+
+
+RELLENO_NUMERO = {"la", "el", "lo", "opcion", "numero", "n", "o"}
+PALABRAS_VACIAS = {"las", "los", "del", "una", "uno", "que", "ventana", "esa", "esta", "usa", "uso", "pon",
+                   "boton", "pulsa", "dale"}
 
 
 def elegir_entre(ventanas: list[dict], aplicacion: str, nombres: list[str] | None = None
