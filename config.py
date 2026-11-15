@@ -159,8 +159,13 @@ VOZ_MAX_SEGUNDOS = 30          # tope de una grabación
 VOZ_SILENCIO_FIN = 1.5         # segundos callado (después de hablar) que terminan la grabación
 VOZ_ESPERA_SIN_VOZ = 8         # si en estos segundos no se oye nada, se deja de escuchar
 # True: la orden reconocida se envía sola. False: se queda en el cuadro de texto
-# para que la revises y pulses Enter (más seguro mientras pruebas la voz).
+# para que la revises y la confirmes (diciendo "enviar" o pulsando Enter).
 VOZ_ENVIAR_AL_TERMINAR = False
+# Tras dejar la orden en el cuadro, el micrófono sigue escuchando un momento
+# para que la confirmes de palabra ("enviar", "enter") o digas "cancelar",
+# sin tocar el teclado. Si no dices nada en ese tiempo, deja de escuchar.
+VOZ_ESCUCHAR_CONFIRMACION = True
+VOZ_ESPERA_CONFIRMACION = 6
 
 # Datos generados por el agente (no se suben a git).
 RUTA_DATOS = Path(__file__).parent / "data"

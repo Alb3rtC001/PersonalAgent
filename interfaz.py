@@ -32,7 +32,8 @@ import tkinter as tk
 from datetime import timedelta
 from tkinter import messagebox, simpledialog
 
-from config import LLM_ACTIVO, VOZ_ENVIAR_AL_TERMINAR, VOZ_MAX_SEGUNDOS
+from config import (LLM_ACTIVO, VOZ_ENVIAR_AL_TERMINAR, VOZ_ESCUCHAR_CONFIRMACION,
+                    VOZ_ESPERA_CONFIRMACION, VOZ_MAX_SEGUNDOS)
 from core import control, voz
 from core.agente import Agente, limpiar_texto
 from core.comandos import AYUDA, atajo_legible, describir_llm, ejecutar_comando, iniciar_atajo_panico, pausar_por_panico  # noqa: E501
@@ -138,6 +139,9 @@ class Interfaz:
         # Voz: la grabación en curso (o None) y el modelo de voz (se carga al usarlo).
         self.grabacion: voz.Grabacion | None = None
         self.transcribiendo = False
+        # True mientras se escucha (sin pulsar nada) si confirmas la orden dictada.
+        self.esperando_confirmacion = False
+        self.dictado: str | None = None     # la última orden dictada que espera confirmación
         self.transcriptor = voz.Transcriptor()
 
         raiz.title("Personal Agent")
@@ -322,6 +326,10 @@ class Interfaz:
         texto = limpiar_texto(self.entrada.get())
         if not texto or self.ocupado:
             return
+        # Si estaba escuchando la confirmación de voz, ya no hace falta.
+        self.dictado = None
+        if self.grabacion is not None and self.esperando_confirmacion:
+            self.grabacion.parar("descartar")
         self.entrada.delete(0, "end")
         if texto.lower() == "salir":
             self.raiz.destroy()
@@ -374,12 +382,17 @@ class Interfaz:
         """
         Pulsar: empieza a escuchar. Pulsar otra vez (o callarse un momento después
         de hablar): deja de escuchar, se transcribe en la CPU y el texto va al cuadro.
+        Después sigue escuchando un momento por si dices "enviar" o "cancelar".
         """
         if self.grabacion is not None:
             self.grabacion.parar("boton")
             return
         if self.ocupado or self.transcribiendo:
             return
+        self._escuchar(confirmacion=False)
+
+    def _escuchar(self, confirmacion: bool) -> None:
+        """Empieza a grabar: una orden o (confirmacion=True) solo "enviar"/"cancelar"."""
         if control.en_pausa():
             self.escribir("■ El agente está en pausa (botón de pánico): reanúdalo para usar la voz.", "error")
             return
@@ -388,24 +401,36 @@ class Interfaz:
             self.escribir(f"🎤 La voz no está lista: {problema}.", "error")
             return
         self.transcriptor.precargar()   # se carga mientras hablas
+        espera = VOZ_ESPERA_CONFIRMACION if confirmacion else voz.VOZ_ESPERA_SIN_VOZ
         self.grabacion = voz.Grabacion(al_terminar=lambda audio, motivo: self.raiz.after(
-            0, self._voz_grabada, audio, motivo))
+            0, self._voz_grabada, audio, motivo), espera_sin_voz=espera)
         try:
             self.grabacion.iniciar()
         except Exception as e:
             self.grabacion = None
             self.escribir(f"🎤 No puedo usar el micrófono: {e}", "error")
             return
+        self.esperando_confirmacion = confirmacion
         self.boton_micro.poner_escuchando(True)
-        self.estado.configure(text="● escuchando…", fg=COLORES["error"])
-        self.escribir("🎤 Te escucho… (habla; termino cuando te calles o al pulsar otra vez el micrófono)",
-                      "aviso")
+        self.estado.configure(text="● ¿enviar?" if confirmacion else "● escuchando…", fg=COLORES["error"])
+        if not confirmacion:
+            self.escribir("🎤 Te escucho… (habla; termino cuando te calles o al pulsar otra vez el micrófono)",
+                          "aviso")
 
     def _voz_grabada(self, audio, motivo: str) -> None:
         self.grabacion = None
+        confirmando, self.esperando_confirmacion = self.esperando_confirmacion, False
         self.boton_micro.poner_escuchando(False)
         if audio is None:
+            self.boton_micro.activar(not self.ocupado and not self.transcribiendo)
             self._estado()
+            if motivo == "descartar":
+                return
+            if confirmando and motivo == "sin_voz":
+                if self.dictado is not None:
+                    self.escribir("  🎤 Dejo de escuchar: la orden sigue en el cuadro (Enter o el micrófono "
+                                  "y «enviar»).", "aviso")
+                return
             textos = {"panico": "■ He dejado de escuchar (botón de pánico).",
                       "sin_voz": "🎤 No te he oído; prueba otra vez (¿micrófono silenciado?)."}
             self.escribir(textos.get(motivo, f"🎤 No he podido grabar ({motivo})."), "aviso")
@@ -435,13 +460,43 @@ class Interfaz:
         if not texto:
             self.escribir("🎤 No te he entendido; prueba otra vez.", "aviso")
             return
+        # ¿Es la confirmación de lo que ya está en el cuadro? ("enviar", "enter", "cancelar")
+        pendiente = limpiar_texto(self.entrada.get())
+        que = voz.confirmacion(texto)
+        if que == "enviar":
+            if pendiente:
+                self.dictado = None
+                self.enviar()
+            else:
+                self.escribir("🎤 No hay ninguna orden en el cuadro que enviar: dímela primero.", "aviso")
+            return
+        if que == "cancelar":
+            self.dictado = None
+            if pendiente:
+                self.entrada.delete(0, "end")
+                self.escribir("🎤 Vale, la borro.", "aviso")
+            return
+        if que == "dudoso":
+            # Un "sí" suelto no manda nada (podría venir de otra conversación) ni
+            # sustituye la orden: se pide la palabra clara.
+            if pendiente:
+                self.escribir("🎤 Para mandarla di «enviar» (o pulsa Enter).", "aviso")
+                if self.dictado is not None and VOZ_ESCUCHAR_CONFIRMACION:
+                    self._escuchar(confirmacion=True)
+            return
         self.entrada.delete(0, "end")
         self.entrada.insert(0, texto)
         if VOZ_ENVIAR_AL_TERMINAR:
             self.enviar()
+            return
+        self.dictado = texto
+        self.entrada.focus_set()
+        self.entrada.icursor("end")
+        if VOZ_ESCUCHAR_CONFIRMACION:
+            self.escribir(f"🎤 He entendido: «{texto}». Di «enviar» (o pulsa Enter) para mandarla, "
+                          "«cancelar» para borrarla, o dímela otra vez.", "aviso")
+            self._escuchar(confirmacion=True)
         else:
-            self.entrada.focus_set()
-            self.entrada.icursor("end")
             self.escribir(f"🎤 He entendido: «{texto}». Revísalo y pulsa Enter para enviarlo.", "aviso")
 
     def _estado(self) -> None:

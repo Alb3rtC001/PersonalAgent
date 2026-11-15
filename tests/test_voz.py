@@ -103,3 +103,36 @@ def test_grabacion_con_voz_da_audio_a_16k():
     g._fin()
     audio, motivo = resultados[0]
     assert motivo == "silencio" and len(audio) == 16000 and audio.dtype == np.float32
+
+
+@pytest.mark.parametrize("dicho, que", [
+    ("Enviar.", "enviar"),
+    ("Enter", "enviar"),
+    ("Enviad", "enviar"),
+    ("Intro.", "enviar"),
+    ("Envíalo", "enviar"),
+    ("Vale, envíalo.", "enviar"),
+    ("Sí, envíalo, por favor.", "enviar"),
+    ("Vale.", "enviar"),
+    ("Cancelar.", "cancelar"),
+    ("Sí, bórralo.", "cancelar"),
+    ("Sí.", "dudoso"),
+    ("OK", "dudoso"),
+    ("Envía un correo a Juan", None),          # otra orden, no una confirmación
+    ("Abre Steam", None),
+    ("Cancela la descarga de Steam", None),
+    ("", None),
+])
+def test_confirmacion(dicho, que):
+    assert voz.confirmacion(dicho) == que
+
+
+def test_grabacion_descartada_no_da_audio():
+    resultados = []
+    g = voz.Grabacion(al_terminar=lambda audio, motivo: resultados.append((audio, motivo)), espera_sin_voz=6)
+    g._detector = voz.DetectorFin(F)
+    g._detector.ha_hablado = True
+    g._trozos = voz_alta(1)
+    g._motivo = "descartar"
+    g._fin()
+    assert resultados == [(None, "descartar")]

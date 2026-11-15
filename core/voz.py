@@ -58,8 +58,12 @@ def disponible() -> str | None:
     try:
         import faster_whisper  # noqa: F401
         import sounddevice  # noqa: F401
-    except ImportError:
-        return ("faltan las librerías de voz: python -m pip install faster-whisper==1.2.1 "
+    except ImportError as e:
+        # Se dice qué Python es: si el agente se arranca con otro (el del sistema en
+        # vez del .venv), la instalación tiene que ir a ese.
+        import sys
+        return (f"faltan las librerías de voz en el Python que está usando el agente ({sys.executable}; "
+                f"{e}). Instálalas en ese: \"{sys.executable}\" -m pip install faster-whisper==1.2.1 "
                 "sounddevice==0.5.6")
     if not (Path(RUTA_MODELO_VOZ) / "model.bin").is_file():
         return f"no encuentro el modelo de voz en {RUTA_MODELO_VOZ} (ver models/README.md)"
@@ -132,8 +136,9 @@ class Grabacion:
     "tope", "panico" o "error: ...".
     """
 
-    def __init__(self, al_terminar: Terminado):
+    def __init__(self, al_terminar: Terminado, espera_sin_voz: float = VOZ_ESPERA_SIN_VOZ):
         self._al_terminar = al_terminar
+        self._espera_sin_voz = espera_sin_voz
         self._trozos: list[np.ndarray] = []
         self._stream = None
         self._frecuencia = FRECUENCIA_WHISPER
@@ -146,7 +151,7 @@ class Grabacion:
         import sounddevice as sd
         dispositivo = sd.query_devices(kind="input")
         self._frecuencia = int(dispositivo["default_samplerate"])
-        self._detector = DetectorFin(self._frecuencia)
+        self._detector = DetectorFin(self._frecuencia, espera_sin_voz=self._espera_sin_voz)
         self._stream = sd.InputStream(samplerate=self._frecuencia, channels=1, dtype="float32",
                                       blocksize=int(self._frecuencia * 0.1), callback=self._trozo,
                                       finished_callback=self._fin)
@@ -154,7 +159,10 @@ class Grabacion:
         log.debug("Escuchando el micrófono '%s' (%d Hz).", dispositivo["name"], self._frecuencia)
 
     def parar(self, motivo: str = "boton") -> None:
-        """Termina la grabación (el botón otra vez). `al_terminar` llega igualmente."""
+        """
+        Termina la grabación (el botón otra vez). `al_terminar` llega igualmente;
+        con motivo "descartar" llega sin audio (lo grabado no se quiere).
+        """
         self._motivo = motivo
         if self._stream is not None:
             threading.Thread(target=self._stream.stop, daemon=True).start()
@@ -186,7 +194,7 @@ class Grabacion:
         threading.Thread(target=self._cerrar, daemon=True).start()
         motivo = self._motivo
         hablo = self._detector is not None and self._detector.ha_hablado
-        if motivo in ("panico", "sin_voz") or not self._trozos or (motivo == "boton" and not hablo):
+        if motivo in ("panico", "sin_voz", "descartar") or not self._trozos or (motivo == "boton" and not hablo):
             self._al_terminar(None, motivo if motivo != "boton" else "sin_voz")
             return
         audio = a_16k(np.concatenate(self._trozos), self._frecuencia)
@@ -204,6 +212,46 @@ def limpiar_transcripcion(texto: str) -> str:
     if normalizar(texto).strip(" .!¡") in {normalizar(a).strip(" .!¡") for a in ALUCINACIONES}:
         return ""
     return texto
+
+
+# Lo que puedes decir (solo eso, sin más palabras) cuando ya hay una orden dictada
+# en el cuadro. "envía un correo a Juan" no cuenta: es otra orden, no una confirmación.
+DECIR_ENVIAR = {
+    "enviar", "envia", "envialo", "envialo ya", "enviala", "enviarlo", "enviarla",
+    "enviad", "envie", "envio", "enviat",          # cómo oye Whisper a veces un "enviar" suelto
+    "enter", "intro", "manda", "mandar", "mandalo",
+    "ejecutar", "ejecuta", "ejecutalo", "adelante", "hazlo", "dale", "vale",
+}   # "sí" u "ok" sueltos no: un "sí" de fondo (otra conversación, la tele) no debe mandar nada
+DECIR_CANCELAR = {"cancelar", "cancela", "cancelalo", "borrar", "borra", "borralo", "olvidalo", "dejalo"}
+RELLENO_CONFIRMACION = {"vale", "si", "ok", "okay", "pues", "venga", "ya", "por favor", "porfa"}
+
+
+def confirmacion(texto: str) -> str | None:
+    """
+    "enviar" o "cancelar" si lo dicho es solo una confirmación ("Enviar.",
+    "Vale, envíalo", "Enter"); "dudoso" si solo es un "sí" u "ok" suelto; None
+    si es otra cosa (una orden nueva).
+    """
+    from core.estado import normalizar
+    palabras = re.sub(r"[^\w\s]", " ", normalizar(texto)).split()
+    if not palabras:
+        return None
+    frase = " ".join(palabras)
+    for decir, que in ((DECIR_CANCELAR, "cancelar"), (DECIR_ENVIAR, "enviar")):
+        if frase in decir:
+            return que
+    # Muletillas delante o detrás: "vale, envíalo", "envíalo por favor", "sí, cancela".
+    resto = frase
+    for relleno in sorted(RELLENO_CONFIRMACION, key=len, reverse=True):
+        resto = re.sub(rf"(^| ){relleno}(?= |$)", " ", resto)
+    resto = " ".join(resto.split())
+    if not resto:
+        return "dudoso"          # solo "sí", "ok"…: ni orden nueva ni confirmación clara
+    if resto in DECIR_CANCELAR:
+        return "cancelar"
+    if resto in DECIR_ENVIAR:
+        return "enviar"
+    return None
 
 
 class Transcriptor:

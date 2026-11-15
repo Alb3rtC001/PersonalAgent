@@ -340,9 +340,18 @@ En la interfaz, el micrófono junto a "enviar":
 1. Púlsalo (se pone rojo: "● escuchando…") y di la orden.
 2. Termina solo cuando te callas 1,5 s (`VOZ_SILENCIO_FIN`), o al pulsarlo
    otra vez. Si no oye nada en 8 s, lo deja (¿micrófono silenciado?).
-3. Lo que ha entendido aparece en el cuadro de texto: revísalo y pulsa
-   Enter. Si prefieres que se envíe solo, pon `VOZ_ENVIAR_AL_TERMINAR = True`
-   en `config.py`.
+3. Lo que ha entendido aparece en el cuadro de texto y el micrófono **sigue
+   escuchando 6 s** (`VOZ_ESPERA_CONFIRMACION`, estado "● ¿enviar?"), sin
+   pulsar nada:
+   - "enviar", "enter", "intro", "envíalo", "vale, envíalo"… → la manda.
+   - "cancelar", "bórralo" → la borra.
+   - Otra frase → sustituye a la orden y vuelve a esperar la confirmación.
+   - Un "sí" u "ok" suelto no manda nada (podría ser otra conversación).
+   - Si te callas, deja de escuchar y la orden se queda en el cuadro (Enter
+     también vale).
+
+   Para no tener esa espera, `VOZ_ESCUCHAR_CONFIRMACION = False`; para que se
+   envíe sin confirmar, `VOZ_ENVIAR_AL_TERMINAR = True` (en `config.py`).
 
 Todo es local: Whisper "small" (`models/faster-whisper-small`) en la CPU,
 sin VRAM y sin internet; el audio no se guarda en ningún sitio. Usa el
