@@ -35,6 +35,11 @@ ESPERA_MAX_CIERRE = 10
 # (Discord, Steam...), terminar su proceso para cerrarla del todo.
 # Nunca se termina si queda alguna ventana visible (p. ej. "¿Guardar cambios?").
 CERRAR_TERMINA_BANDEJA = True
+# Apps con su propia orden de salida: se usa antes que terminar el proceso. Cierra
+# la app entera de forma limpia y SIN cerrar sesión (Steam: como "Steam > Salir";
+# la cuenta sigue iniciada la próxima vez). Clave: nombre de la app en minúsculas.
+CIERRE_LIMPIO = {"steam": "steam://exit"}
+ESPERA_CIERRE_LIMPIO = 30   # segundos para que termine sola antes de forzarla
 
 # ---------------------------------------------------------------------------
 # Seguridad (core/seguridad.py)
@@ -60,6 +65,14 @@ VENTANAS_PROHIBIDAS = [
     # terminales y herramientas del sistema
     "powershell.exe", "pwsh.exe", "cmd.exe", "windowsterminal.exe", "regedit.exe", "taskmgr.exe",
     "mmc.exe", "editor del registro",
+]
+# Botones que hacer_clic NUNCA pulsa (compras, pagos, borrar, cerrar sesión...):
+# si el nombre del botón contiene uno de estos textos (sin mayúsculas ni tildes),
+# se niega y te pide que lo hagas tú.
+CONTROLES_PROHIBIDOS = [
+    "comprar", "compra", "pagar", "pago", "carrito", "suscrib", "donar", "regalar", "transferir",
+    "eliminar", "borrar", "desinstalar", "cerrar sesion", "desconectar cuenta",
+    "buy", "purchase", "checkout", "pay", "delete", "remove", "uninstall", "sign out", "log out",
 ]
 # Combinación global (en cualquier ventana) que para el agente como el botón de
 # pánico. Formato de pynput. Ctrl+Alt+P ("parar"): no la usa Windows (Ctrl+Alt+Esc

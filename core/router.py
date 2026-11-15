@@ -88,12 +88,13 @@ class Router:
         self.llm = llm                  # se crea al activarlo por primera vez
         self._llm_cpu = llm_cpu
         self.usar_llm = usar_llm
+        _permitir_llm(usar_llm)   # lo consultan otras skills que usan el LLM (leer_pantalla)
 
     # --- Control del LLM -------------------------------------------------------
 
     def _crear_llm(self):
-        from core.llm import InterpreteLLM, ServidorLLM
-        servidor = ServidorLLM(capas_gpu=0) if self._llm_cpu else ServidorLLM()
+        from core.llm import InterpreteLLM, servidor_compartido
+        servidor = servidor_compartido(capas_gpu=0 if self._llm_cpu else None)
         return InterpreteLLM(self.registro, servidor=servidor)
 
     def activar_llm(self, activo: bool) -> None:
@@ -102,6 +103,7 @@ class Router:
         modelo (libera la VRAM) y el agente sigue solo con el clasificador.
         """
         self.usar_llm = activo
+        _permitir_llm(activo)
         if activo:
             if self.llm is None:
                 self.llm = self._crear_llm()
@@ -227,3 +229,8 @@ class Router:
             texto, r.skill or "ninguna", interp.confianza, skill=r.skill, params=params,
             motivo_rechazo=None if r.skill else r.motivo, origen="llm",
         )
+
+
+def _permitir_llm(permitido: bool) -> None:
+    from core.llm import permitir_llm
+    permitir_llm(permitido)

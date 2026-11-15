@@ -192,7 +192,7 @@ tests/
 | Sin forma de desactivar el LLM sin editar código | `--sin-llm`, `llm off/on`, `POST /llm`, `PERSONALAGENT_LLM`, descarga por inactividad | 3 ✅ |
 | Al dar el foco a una ventana se perdía la primera tecla escrita después (el truco de pulsar ALT activaba el menú de la app) | `AttachThreadInput` + movimiento de ratón nulo; sin teclas falsas | 3 ✅ |
 | Las apps de la Store minimizadas dejan una ventana interna "camuflada" (cloaked) que el agente tomaba por visible: no se restauraban ni recibían el foco | Las ventanas camufladas se ignoran | 3 ✅ |
-| `escribir_texto` escribe en la ventana, pero no puede saber si el cursor está en el campo correcto | Pendiente: UI Automation (§11) | 5 |
+| `escribir_texto` escribe en la ventana, pero no puede saber si el cursor está en el campo correcto | UI Automation: elige el campo (el del cursor, el único que haya o el que digas) y después lee lo escrito (§11) | 5 ✅ |
 | `abrir_aplicacion` da por buena cualquier ventana nueva (una notificación que aparezca a la vez cuenta como éxito) | Pendiente: exigir que la ventana nueva sea de un proceso lanzado tras la orden (ojo con el Explorador, que reutiliza explorer.exe) | 5 |
 
 ---
@@ -276,9 +276,39 @@ Cada fase termina con algo que funciona de punta a punta.
     skill está disponible al momento; el LLM la usa por su descripción
     ("suma 4 a siete" → `sumar_a_siete(numero=4)`). También
     `python -m recorder.grabar`.
-  - ⏳ Lo que sigue: lectura de pantalla para preguntas, campo destino de
-    `escribir_texto` con UI Automation, plan del LLM a partir de los
-    controles de una app nueva.
+  - ✅ Leer la pantalla para responder (`leer_pantalla`,
+    `core/skills/pantalla.py`): lee el texto de la ventana con UI Automation
+    (CPU, sin capturas) y el LLM responde a la pregunta ("qué pone en la
+    calculadora" → "La pantalla muestra 144", ~2 s). El texto de la
+    pantalla se le pasa como información, nunca como órdenes; no lee
+    ventanas prohibidas; con el LLM desactivado devuelve el texto tal cual.
+  - ✅ `escribir_texto` escribe en el campo correcto (§11): el que tiene el
+    cursor, el único de la ventana, o el que digas ("escribe pizza en el
+    buscador de chrome", parámetro opcional `campo`). Si hay varios y no
+    dices cuál, pregunta en vez de escribir a ciegas.
+  - ✅ Comprueba lo escrito: después de escribir lee el campo; si no
+    contiene el texto, la verificación falla (y el ejecutor replanifica).
+    Las apps web (Steam) actualizan el valor con retraso: se relee hasta
+    ~1,6 s. Los campos de búsqueda se vacían antes (Ctrl+A, Supr y se
+    comprueba que quedan vacíos) y después deben contener exactamente lo
+    escrito.
+  - ✅ Varias ventanas de una app (`core/skills/ventanas.py`,
+    `elegir_entre`): la única a la vista, la elegida antes (15 min), la que
+    se llama como la app, o se pregunta cuál (número o parte del título).
+    Lo usan escribir_texto, pulsar_teclas, hacer_clic, leer_pantalla,
+    restaurar_ventana y abrir_aplicacion (si ya estaba abierta).
+  - ✅ Cierre limpio (`CIERRE_LIMPIO`): Steam se cierra con `steam://exit`,
+    sin cerrar sesión, en vez de terminar su proceso. Probado: cerrado,
+    sin procesos, y al reabrir la cuenta seguía iniciada.
+  - ✅ `hacer_clic` (`core/skills/clic.py`): pulsa un botón, pestaña o
+    enlace visible por su nombre. Nunca pulsa `CONTROLES_PROHIBIDOS`
+    (comprar, pagar, borrar...), no hace clic si hay otra ventana encima y
+    tiene riesgo "medio". En `core/atajos_apps.json` cada app puede tener
+    `botones` y `campos` además de `atajos`. Probado de verdad: "busca en
+    steam el juego slay the spire 2" → abrir Steam → clic en "Biblioteca"
+    → escribir en "Buscar por nombre"; el campo y la lista lo confirman.
+  - ⏳ Lo que sigue: recordar el campo elegido por app (`data/campos.json`)
+    y el plan del LLM a partir de los controles de una app nueva.
   Diseño original: UI Automation (CPU,
   sin GPU): la grabadora guarda el control pulsado (tipo, nombre,
   AutomationId) y los atajos usados, no coordenadas; con una sola
@@ -482,23 +512,30 @@ Salvaguardas sobre la respuesta del LLM:
 
 ### Resultados (`python -m evaluacion.evaluar`)
 
-Con Qwen3-8B. `ordenes.json` (52 frases, usado para ajustar) y
+Con Qwen3-8B. `ordenes.json` (76 frases tras la fase 5, usado para
+ajustar; incluye órdenes de varios pasos, `leer_pantalla` y `campo`) y
 `ordenes_control.json` (30 frases que no se usaron para ajustar nada):
 
 | Vía               | Ajuste: skill + parámetros | Control: skill + parámetros | Tiempo por frase |
 | ----------------- | :------------------------: | :-------------------------: | ---------------- |
-| Solo clasificador | 58 %                       | —                           | < 2 ms           |
-| Solo LLM          | 100 %                      | 100 %                       | ~0,43 s          |
-| Híbrido           | 98 %                       | 100 %                       | 0 ms (conocidas) – ~0,4–0,9 s (nuevas) |
+| Solo clasificador | 46 %                       | —                           | < 2 ms           |
+| Solo LLM          | 95 %                       | —                           | ~0,55 s          |
+| Híbrido           | 97 % (74/76)               | 100 % (30/30)               | 0 ms (conocidas) – ~0,5–1,9 s (nuevas) |
 
-El fallo del híbrido es "minimiza discord" → `cerrar_aplicacion`: es un caso
-límite en el que el modelo no siempre responde igual (en la vía "solo LLM"
-lo rechazó bien). Son pocas frases: para medir de verdad hay que ir
+Fallos del híbrido: "cierra todas las ventanas de chrome" (lo rechaza) y
+"busca recetas de lentejas en google" (se queda en el primer paso). En
+`evaluacion/*.json` un valor `"*"` acepta cualquier texto (la pregunta de
+`leer_pantalla`, que el LLM puede reformular).
+
+Ojo con los ejemplos de `core/llm_ejemplos.json`: cambian el
+comportamiento de todo el modelo. Un ejemplo "dime qué tiempo hace" →
+`ninguna` hizo que rechazara "reinicia steam"; tras cada cambio en los
+ejemplos, vuelve a pasar la evaluación. Son pocas frases: para medir de verdad hay que ir
 añadiendo órdenes reales (de `data/episodios.jsonl`) al conjunto de control.
 
 ---
 
-## 11. Escribir en el campo correcto (diseño, pendiente para la fase 5)
+## 11. Escribir en el campo correcto (fase 5: puntos 1 y 3 hechos)
 
 `escribir_texto` y `pulsar_teclas` ponen la **ventana** en primer plano y
 comprueban que tiene el foco del teclado. Pero dentro de la ventana el
@@ -511,6 +548,25 @@ que quieres:
 | Bloc de notas | Sí | El único control es el área de texto |
 | Discord, Telegram, WhatsApp | Normalmente | Al activarse ponen el cursor en el cuadro de mensaje (pero no si estabas en el buscador) |
 | Chrome / Google | No siempre | El cursor puede estar en la página, en la barra de direcciones o en ningún sitio |
+
+### Qué está hecho (fase 5)
+
+`escribir_texto` (`core/skills/teclado.py`, `preparar_campo` y
+`comprobar_escrito`) usa UI Automation (`core/uia.py`) antes y después de
+escribir:
+
+1. Con `campo` ("escribe hola en el buscador de discord"): busca entre los
+   campos editables de la ventana el de nombre más parecido ("buscador" ~
+   "Buscar", "mensaje" ~ "Enviar mensaje a #general") y lo enfoca. Si
+   ninguno se parece, dice cuáles hay.
+2. Sin `campo`: si el cursor ya está en un campo editable de esa ventana,
+   escribe ahí; si no, y solo hay uno, lo enfoca; si hay varios, pregunta
+   cuál; si no hay ninguno (la Calculadora), escribe en la ventana.
+3. Después lee el valor del campo: si no contiene el texto, `verificar`
+   falla. Si el campo no se puede leer, no se da por fallido.
+
+Probado con un formulario de dos campos (Nombre y Buscar) y con la
+Calculadora. Falta el punto 2 (recordar el campo por app) y el 4.
 
 ### Solución propuesta, por capas (de más barata a más cara)
 

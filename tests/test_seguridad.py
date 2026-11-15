@@ -67,9 +67,9 @@ def test_ventanas_prohibidas(ventana, prohibida):
 
 def test_el_teclado_no_escribe_en_una_ventana_prohibida(monkeypatch):
     escrito = []
-    monkeypatch.setattr(teclado, "ventana_principal",
-                        lambda nombres: {"hwnd": 1, "titulo": "Windows PowerShell", "proceso": "powershell.exe",
-                                         "oculta": False, "minimizada": False})
+    monkeypatch.setattr(teclado, "elegir_ventana",
+                        lambda nombres, app: ({"hwnd": 1, "titulo": "Windows PowerShell", "proceso": "powershell.exe",
+                                               "oculta": False, "minimizada": False}, None))
     monkeypatch.setattr(teclado, "poner_foco", lambda hwnd: True)
     monkeypatch.setattr(teclado, "escribir", lambda t: escrito.append(t) or len(t))
     skill = teclado.EscribirTexto()

@@ -42,6 +42,7 @@ from core.memoria import registrar_episodio
 from core.registro import REGISTRO
 from core.router import VARIOS_PASOS, Interpretacion, Router
 from core.skills.base import Resultado, Skill
+from core.skills.ventanas import preguntando_con
 
 Pedir = Callable[[str], str]
 log = logging.getLogger("personalagent")
@@ -419,7 +420,9 @@ class Agente:
 
         params = dict(interp.params)
         while True:
-            resultado = self.ejecutar(interp, params, confirmar)
+            # Si una skill encuentra varias ventanas de la app y duda, te pregunta cuál.
+            with preguntando_con(pedir):
+                resultado = self.ejecutar(interp, params, confirmar)
             if not resultado.falta or pedir is None:
                 return resultado
             valor = pedir(resultado.mensaje).strip()

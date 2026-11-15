@@ -17,14 +17,15 @@ seleccionar antes el cuadro de texto. Ver ARQUITECTURA.md §11.
 
 from __future__ import annotations
 
+import difflib
 import time
 
-from core import control
-from core.estado import hwnd_activo, poner_foco
+from core import control, uia
+from core.estado import hwnd_activo, normalizar, poner_foco
 from core.skills.abrir_aplicacion import AppInstalada, listar_apps_instaladas
 from core.seguridad import registrar_actividad, ventana_prohibida
 from core.skills.base import Resultado, Skill
-from core.skills.ventanas import nombres_de_app, ventana_principal
+from core.skills.ventanas import elegir_ventana, nombres_de_app
 from core.teclado import (
     ErrorTeclas,
     describir_combinacion,
@@ -35,6 +36,8 @@ from core.teclado import (
 )
 
 PAUSA_TRAS_CAMBIAR_FOCO = 0.3   # segundos
+INTENTOS_COMPROBACION = 8       # lecturas del campo tras escribir (máx. ~1,6 s)
+PAUSA_COMPROBACION = 0.2
 
 DESCRIPCION_APLICACION = ("Aplicación donde actuar, tal como la nombra el usuario. Si no la dice, "
                           "no la incluyas: se usa la última con la que se ha trabajado")
@@ -56,9 +59,9 @@ class _EnAplicacion(Skill):
                 self._apps = listar_apps_instaladas()
         except Exception:
             self._apps = []
-        ventana = ventana_principal(nombres_de_app(aplicacion, self._apps))
+        ventana, duda = elegir_ventana(nombres_de_app(aplicacion, self._apps), aplicacion)
         if ventana is None:
-            return None, f"No encuentro ninguna ventana abierta de '{aplicacion}'."
+            return None, duda or f"No encuentro ninguna ventana abierta de '{aplicacion}'."
         prohibida = ventana_prohibida(ventana)
         if prohibida:
             registrar_actividad("seguridad", f"Bloqueado {self.nombre}: {prohibida}", False)
@@ -74,19 +77,129 @@ class _EnAplicacion(Skill):
         return ventana, None
 
 
+def _parecido(campo: str, nombre: str) -> float:
+    """'buscador' ~ 'Buscar', 'mensaje' ~ 'Enviar mensaje a #general', 'direcciones' ~ 'Barra de direcciones'."""
+    a, b = normalizar(campo), normalizar(nombre)
+    if not a or not b:
+        return 0.0
+    if a in b or b in a:
+        return 1.0
+    raices = {p[:5] for p in a.split() if len(p) >= 4}
+    if raices and any(p[:5] in raices for p in b.split()):
+        return 0.9
+    return difflib.SequenceMatcher(None, a, b).ratio()
+
+
+def preparar_campo(hwnd: int, campo: str | None) -> tuple[object | None, str | None, str | None]:
+    """
+    Pone el foco en el campo donde escribir. Devuelve (control, nombre, error):
+    - con `campo` ("buscador"): el campo editable de la ventana con ese nombre;
+    - sin `campo`: si el foco ya está en un campo editable de la ventana, ese;
+      si no, el único campo editable que haya; si hay varios, error (que digas
+      cuál); si no hay ninguno, (None, None, None): la ventana entera recibe el
+      teclado (la Calculadora).
+    """
+    foco = uia.foco_actual()
+    if campo:
+        candidatos = uia.campos_editables(hwnd)
+        puntuados = sorted(((_parecido(campo, uia.nombre_de_campo(c)), c) for c in candidatos),
+                           key=lambda p: -p[0])
+        if not puntuados or puntuados[0][0] < 0.6:
+            nombres = ", ".join(f"'{uia.nombre_de_campo(c)}'" for c in candidatos) or "ninguno"
+            return None, None, f"No encuentro el campo '{campo}' (campos de texto de la ventana: {nombres})."
+        elegido = puntuados[0][1]
+    elif foco is not None and uia.es_editable(foco) and _de_la_ventana(foco, hwnd):
+        return foco, uia.nombre_de_campo(foco), None
+    else:
+        candidatos = uia.campos_editables(hwnd)
+        if not candidatos:
+            return None, None, None
+        if len(candidatos) > 1:
+            nombres = ", ".join(f"'{uia.nombre_de_campo(c)}'" for c in candidatos[:8])
+            return None, None, (f"El cursor no está en ningún campo de texto y hay {len(candidatos)} "
+                                f"({nombres}): dime en cuál, p. ej. \"escribe ... en el campo "
+                                f"{uia.nombre_de_campo(candidatos[0])}\".")
+        elegido = candidatos[0]
+    try:
+        elegido.SetFocus()
+        time.sleep(0.15)
+    except Exception:
+        pass
+    return elegido, uia.nombre_de_campo(elegido), None
+
+
+def _de_la_ventana(control, hwnd: int) -> bool:
+    try:
+        return (control.GetTopLevelControl() or control).NativeWindowHandle == hwnd
+    except Exception:
+        return False
+
+
+# Campos cuyo contenido anterior sobra: una búsqueda nueva sustituye a la vieja
+# (en los demás, p. ej. un mensaje a medias, se escribe a continuación).
+PALABRAS_CAMPO_BUSQUEDA = ("busca", "search", "filtr", "direccion", "address", "url")
+
+
+def es_campo_de_busqueda(nombre: str | None) -> bool:
+    n = normalizar(nombre or "")
+    return any(p in n for p in PALABRAS_CAMPO_BUSQUEDA)
+
+
+def vaciar_si_es_busqueda(campo, nombre: str | None) -> tuple[bool, str | None]:
+    """
+    Si es un campo de búsqueda con texto, lo vacía (Ctrl+A y Supr) y comprueba
+    que ha quedado vacío ANTES de escribir. Devuelve (vaciado, error).
+    """
+    if campo is None or not es_campo_de_busqueda(nombre) or not uia.leer_valor(campo):
+        return False, None
+    for combinacion in interpretar_teclas("control a supr"):
+        pulsar(combinacion)
+    for intento in range(INTENTOS_COMPROBACION):
+        if not uia.leer_valor(campo):
+            return True, None
+        time.sleep(PAUSA_COMPROBACION)
+    return False, (f"No he podido vaciar el campo '{nombre}' (sigue con texto): no escribo encima "
+                   "para no mezclar las dos búsquedas.")
+
+
+def comprobar_escrito(campo, texto: str, exacto: bool = False) -> bool | None:
+    """
+    ¿El campo contiene el texto? (`exacto`: ¿es exactamente el texto? tras
+    vaciarlo no debe quedar nada más). None si no se puede leer (la Calculadora).
+    """
+    if campo is None:
+        return None
+    # Las apps web (Steam, Discord) actualizan el valor un momento después de
+    # recibir las teclas: se vuelve a leer unas cuantas veces antes de dar el fallo.
+    for intento in range(INTENTOS_COMPROBACION):
+        valor = uia.leer_valor(campo)
+        if valor is None:
+            return None
+        if (normalizar(valor).strip() == normalizar(texto).strip()) if exacto else (normalizar(texto) in normalizar(valor)):
+            return True
+        if intento < INTENTOS_COMPROBACION - 1:
+            time.sleep(PAUSA_COMPROBACION)
+    return False
+
+
 class EscribirTexto(_EnAplicacion):
     nombre = "escribir_texto"
     descripcion = ("Escribe un texto, como si lo tecleara el usuario, en la ventana de una "
-                   "aplicación abierta (la pone antes en primer plano). No pulsa Enter ni envía "
-                   "nada: para eso está pulsar_teclas. No sirve para guardar notas: eso es crear_nota.")
+                   "aplicación abierta (la pone antes en primer plano y elige el cuadro de texto). "
+                   "No pulsa Enter ni envía nada: para eso está pulsar_teclas. No sirve para "
+                   "guardar notas: eso es crear_nota.")
     parametros = {
         "texto": "Texto exacto a escribir, copiado tal cual de la orden",
         "aplicacion": DESCRIPCION_APLICACION,
     }
+    parametros_opcionales = {
+        "campo": ("Cuadro de texto donde escribir, solo si el usuario lo dice (p. ej. 'buscador', "
+                  "'mensaje', 'barra de direcciones'). Si no lo dice, no lo incluyas"),
+    }
     parametros_literales = frozenset({"texto"})
     coste = 1
 
-    def ejecutar(self, texto: str = "", aplicacion: str = "") -> Resultado:
+    def ejecutar(self, texto: str = "", aplicacion: str = "", campo: str | None = None) -> Resultado:
         texto = limpiar_texto_a_escribir(texto or "")
         if not texto.strip():
             return Resultado(False, "No hay nada que escribir.", falta="texto")
@@ -94,11 +207,22 @@ class EscribirTexto(_EnAplicacion):
         if error:
             return Resultado(False, error)
 
-        esperados = len(texto.encode("utf-16-le")) // 2
-        enviados = escribir(texto)
-        return Resultado(True, f"Escrito en '{ventana['titulo']}': {texto!r}", datos={
+        with uia.en_hilo():
+            control_campo, nombre_campo, error = preparar_campo(ventana["hwnd"], campo)
+            if error:
+                return Resultado(False, error)
+            reemplazado, error = vaciar_si_es_busqueda(control_campo, nombre_campo)
+            if error:
+                return Resultado(False, error)
+            esperados = len(texto.encode("utf-16-le")) // 2
+            enviados = escribir(texto)
+            comprobado = comprobar_escrito(control_campo, texto, exacto=reemplazado)
+        donde = f"'{ventana['titulo']}'" + (f", campo '{nombre_campo}'" if nombre_campo else "")
+        return Resultado(True, f"Escrito en {donde}: {texto!r}" + (" (antes he vaciado el campo)" if reemplazado else ""),
+                         datos={
             "hwnd": ventana["hwnd"], "titulo": ventana["titulo"], "aplicacion": aplicacion,
-            "enviados": enviados, "esperados": esperados,
+            "enviados": enviados, "esperados": esperados, "campo": nombre_campo, "comprobado": comprobado,
+            "reemplazado": reemplazado,
         })
 
     def verificar(self, resultado: Resultado) -> bool:
@@ -113,8 +237,11 @@ class EscribirTexto(_EnAplicacion):
             datos["motivo_verificacion"] = ("El foco cambió de ventana mientras escribía: puede que "
                                             "parte del texto haya ido a otra ventana.")
             return False
-        # Lo que no se puede comprobar aquí es que el campo correcto lo haya
-        # recibido (ver el docstring del módulo).
+        if datos.get("comprobado") is False:
+            datos["motivo_verificacion"] = (f"Lo escribí, pero el campo '{datos.get('campo')}' no lo contiene "
+                                            "(la app puede haberlo rechazado o cambiado).")
+            return False
+        # comprobado None: el campo no se puede leer (p. ej. la Calculadora).
         return True
 
 

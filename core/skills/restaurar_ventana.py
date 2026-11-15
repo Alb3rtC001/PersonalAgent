@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from core.estado import buscar_ventana, es_visible, traer_al_frente, ventana_visible
 from core.skills.base import Resultado, Skill
+from core.skills.ventanas import elegir_entre
 
 
 class RestaurarVentana(Skill):
@@ -23,9 +24,15 @@ class RestaurarVentana(Skill):
         if not ventanas:
             return Resultado(False, f"No hay ninguna ventana abierta de '{aplicacion}'.")
 
-        # Preferir la que no se ve (es la que hay que restaurar).
-        ventanas.sort(key=es_visible)
-        info = ventanas[0]
+        # Si solo una no se ve, es la que hay que restaurar; si no, la que
+        # elegiste antes, la que se llama como la app o se pregunta cuál.
+        escondidas = [v for v in ventanas if not es_visible(v)]
+        if len(escondidas) == 1:
+            info = escondidas[0]
+        else:
+            info, duda = elegir_entre(escondidas or ventanas, aplicacion)
+            if info is None:
+                return Resultado(False, duda)
         traer_al_frente(info["hwnd"])
         return Resultado(True, f"Ventana '{info['titulo']}' al frente.",
                          datos={"hwnd": info["hwnd"], "titulo": info["titulo"]})

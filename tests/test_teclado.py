@@ -59,11 +59,14 @@ def test_el_texto_nunca_lleva_saltos_de_linea():
 def pantalla(monkeypatch):
     estado = {"ventana": {"hwnd": 7, "titulo": "Calculadora", "oculta": False, "minimizada": False},
               "foco_ok": True, "foco": 7, "escrito": [], "pulsado": []}
-    monkeypatch.setattr(mod, "ventana_principal", lambda nombres: estado["ventana"])
+    monkeypatch.setattr(mod, "elegir_ventana", lambda nombres, app: (estado["ventana"], None))
     monkeypatch.setattr(mod, "poner_foco", lambda hwnd: estado["foco_ok"])
     monkeypatch.setattr(mod, "hwnd_activo", lambda: estado["foco"])
     monkeypatch.setattr(mod, "escribir", lambda texto: estado["escrito"].append(texto) or len(texto))
     monkeypatch.setattr(mod, "pulsar", lambda c: estado["pulsado"].append(c) or True)
+    # Sin UI Automation real: la ventana entera recibe el teclado y no se puede leer.
+    monkeypatch.setattr(mod, "preparar_campo", lambda hwnd, campo: (None, None, None))
+    monkeypatch.setattr(mod, "comprobar_escrito", lambda c, t, exacto=False: None)
     return estado
 
 

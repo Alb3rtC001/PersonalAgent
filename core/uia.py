@@ -119,10 +119,143 @@ def centro(control) -> tuple[int, int]:
     return (r.left + r.right) // 2, (r.top + r.bottom) // 2
 
 
+def _patron_valor(control):
+    try:
+        return control.GetPattern(auto.PatternId.ValuePattern)
+    except Exception:
+        return None
+
+
 def leer_valor(control) -> str | None:
     """Texto de un campo (para comprobar lo escrito), si el control lo permite."""
+    patron = _patron_valor(control)
     try:
-        patron = control.GetValuePattern()
         return patron.Value if patron else None
     except Exception:
         return None
+
+
+TIPOS_EDITABLES = {"EditControl", "DocumentControl", "ComboBoxControl"}
+
+
+def es_editable(control) -> bool:
+    """¿Se puede escribir en este control? (cuadro de texto, documento editable...)."""
+    if control is None or control.ControlTypeName not in TIPOS_EDITABLES:
+        return False
+    patron = _patron_valor(control)
+    if patron is not None:
+        try:
+            return not patron.IsReadOnly
+        except Exception:
+            return True
+    # Sin patrón de valor: un Edit sí suele aceptar texto; un Document (una página web) no.
+    return control.ControlTypeName == "EditControl"
+
+
+def foco_actual():
+    """El control (objeto de uiautomation) que tiene el foco, o None."""
+    return auto.GetFocusedControl() if UIA_DISPONIBLE else None
+
+
+def recorrer(hwnd: int, max_nodos: int = 2500, tiempo_max: float = 2.0, profundidad: int = 25):
+    """Controles de una ventana, con tope de nodos y de tiempo (algunas apps tienen miles)."""
+    if not UIA_DISPONIBLE or not hwnd:
+        return
+    import time
+    ventana = auto.ControlFromHandle(hwnd)
+    if ventana is None:
+        return
+    limite = time.monotonic() + tiempo_max
+    for n, (control, _) in enumerate(auto.WalkControl(ventana, includeTop=False, maxDepth=profundidad)):
+        if n >= max_nodos or time.monotonic() > limite:
+            break
+        yield control
+
+
+def campos_editables(hwnd: int) -> list:
+    """Cuadros de texto de una ventana en los que se puede escribir (visibles)."""
+    campos = []
+    # Las apps web (Steam, Discord) tienen árboles hondos: mismo alcance que al leer la pantalla.
+    for control in recorrer(hwnd, max_nodos=6000, tiempo_max=3.0, profundidad=40):
+        try:
+            if control.ControlTypeName in TIPOS_EDITABLES and not control.IsOffscreen and es_editable(control):
+                campos.append(control)
+        except Exception:
+            continue
+    return campos
+
+
+def nombre_de_campo(control) -> str:
+    return (control.Name or control.AutomationId or control.ControlTypeName.replace("Control", "")).strip()
+
+
+# Controles que se pueden pulsar por su nombre (hacer_clic). Incluye los textos:
+# en las apps web (Steam, Discord...) una pestaña suele ser un texto clicable.
+TIPOS_PULSABLES = {"ButtonControl", "HyperlinkControl", "TabItemControl", "MenuItemControl",
+                   "ListItemControl", "TreeItemControl", "TextControl", "CheckBoxControl",
+                   "RadioButtonControl", "SplitButtonControl", "DataItemControl"}
+
+
+def controles_pulsables(hwnd: int, tiempo_max: float = 3.0) -> list:
+    """Controles visibles de la ventana, con nombre, que se pueden pulsar."""
+    encontrados = []
+    for control in recorrer(hwnd, max_nodos=6000, tiempo_max=tiempo_max, profundidad=40):
+        try:
+            if control.IsOffscreen or control.ControlTypeName not in TIPOS_PULSABLES:
+                continue
+            nombre = (control.Name or "").strip()
+            r = control.BoundingRectangle
+            if nombre and len(nombre) <= 80 and r.right > r.left and r.bottom > r.top:
+                encontrados.append(control)
+        except Exception:
+            continue
+    return encontrados
+
+
+def ventana_de_punto(x: int, y: int) -> int | None:
+    """hwnd de la ventana principal que hay bajo un punto (para no hacer clic sobre otra)."""
+    if not UIA_DISPONIBLE:
+        return None
+    try:
+        control = auto.ControlFromPoint(x, y)
+        return (control.GetTopLevelControl() or control).NativeWindowHandle if control else None
+    except Exception:
+        return None
+
+
+# Tipos de control cuyo nombre es texto que se ve en pantalla.
+TIPOS_CON_TEXTO = {"TextControl", "HyperlinkControl", "ListItemControl", "TreeItemControl", "HeaderControl",
+                   "HeaderItemControl", "DataItemControl", "ButtonControl", "TabItemControl", "MenuItemControl",
+                   "TitleBarControl", "GroupControl", "StatusBarControl", "ToolTipControl"}
+
+
+def texto_de_ventana(hwnd: int, max_caracteres: int = 7000, tiempo_max: float = 3.0) -> str:
+    """
+    El texto visible de una ventana, en orden, para que el LLM conteste
+    preguntas sobre ella. Sin duplicados seguidos y con tope de tamaño.
+    """
+    lineas: list[str] = []
+    total = 0
+    for control in recorrer(hwnd, max_nodos=6000, tiempo_max=tiempo_max, profundidad=40):
+        try:
+            if control.IsOffscreen:
+                continue
+            tipo = control.ControlTypeName
+            texto = ""
+            if tipo in TIPOS_CON_TEXTO:
+                texto = control.Name or ""
+            elif tipo in TIPOS_EDITABLES:
+                valor = leer_valor(control)
+                texto = f"[campo {control.Name or ''}: {valor}]" if valor else ""
+        except Exception:
+            continue
+        # Fuera los iconos (caracteres de uso privado, p. ej. "") y espacios de más.
+        texto = " ".join("".join(c for c in texto if not 0xE000 <= ord(c) <= 0xF8FF).split())
+        if not texto or (lineas and lineas[-1] == texto):
+            continue
+        lineas.append(texto)
+        total += len(texto) + 1
+        if total >= max_caracteres:
+            lineas.append("[… texto recortado]")
+            break
+    return "\n".join(lineas)

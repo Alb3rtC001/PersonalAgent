@@ -11,9 +11,13 @@ Skill nativa: cerrar una aplicación.
    decide: se cierra, pregunta si guardar cambios o se esconde en la bandeja.
 3. Si queda alguna ventana visible (p. ej. "¿Guardar cambios?") NO fuerza
    nada: avisa y deja que decidas tú.
-4. Si la app solo se ha escondido en la bandeja (Discord, Steam...) y
-   CERRAR_TERMINA_BANDEJA está activo, termina su proceso para cerrarla
-   del todo.
+4. Si la app solo se ha escondido en la bandeja (Discord, Steam...):
+   - si tiene su propia orden de salida (CIERRE_LIMPIO, p. ej. Steam:
+     steam://exit), se usa: se cierra entera y limpiamente, SIN cerrar
+     sesión;
+   - si no (o no ha terminado a tiempo) y CERRAR_TERMINA_BANDEJA está
+     activo, termina su proceso para cerrarla del todo (tampoco cierra la
+     sesión: solo para el programa).
 
 Nunca cierra el proceso desde el que se está ejecutando el agente (la
 terminal, VS Code...) ni procesos de Windows compartidos (explorer.exe,
@@ -27,9 +31,10 @@ import os
 import time
 from pathlib import Path
 
-from config import CERRAR_TERMINA_BANDEJA, ESPERA_MAX_CIERRE
+from config import CERRAR_TERMINA_BANDEJA, CIERRE_LIMPIO, ESPERA_CIERRE_LIMPIO, ESPERA_MAX_CIERRE
 from core import control
 from core.estado import (
+    normalizar,
     listar_ventanas_abiertas,
     pedir_cierre,
     ventana_existe,
@@ -96,6 +101,34 @@ def _raiz_de_app(pid: int, propios: set[int]):
         except psutil.Error:
             break
     return raiz
+
+
+def orden_de_cierre_limpio(nombres: list[str]) -> str | None:
+    for n in nombres:
+        orden = CIERRE_LIMPIO.get(normalizar(n))
+        if orden:
+            return orden
+    return None
+
+
+def _cerrar_limpio(orden: str, pids: set[int], propios: set[int], espera: float) -> bool:
+    """Lanza la salida propia de la app y espera a que terminen sus procesos principales."""
+    if psutil is None:
+        return False
+    raices = []
+    for pid in pids:
+        try:
+            raices.append(_raiz_de_app(pid, propios))
+        except psutil.Error:
+            continue
+    os.startfile(orden)   # steam://exit: Steam se cierra solo, como con "Steam > Salir"
+    limite = time.monotonic() + espera
+    while time.monotonic() < limite:
+        if not any(r.is_running() for r in raices):
+            return True
+        control.comprobar()   # botón de pánico
+        time.sleep(0.5)
+    return False
 
 
 def _terminar_procesos(pids: set[int], propios: set[int]) -> list[str]:
@@ -214,6 +247,14 @@ class CerrarAplicacion(Skill):
             # Solo quedan ventanas ocultas de procesos compartidos de Windows
             # (p. ej. el marco de una app de la Store a medio cerrar): está cerrada.
             return Resultado(True, f"'{aplicacion}' cerrada.", datos=datos)
+        orden = orden_de_cierre_limpio(nombres)
+        if orden and psutil is not None:
+            log.info("'%s' se ha escondido en la bandeja; uso su propia salida (%s), sin cerrar sesión…",
+                     aplicacion, orden)
+            if _cerrar_limpio(orden, pids, propios, ESPERA_CIERRE_LIMPIO):
+                return Resultado(True, f"'{aplicacion}' cerrada con su propia salida ({orden}); la sesión "
+                                       "sigue iniciada.", datos={**datos, "cierre_limpio": orden})
+            log.warning("'%s' no ha terminado con %s en %d s.", aplicacion, orden, ESPERA_CIERRE_LIMPIO)
         if not self.terminar_en_bandeja or psutil is None:
             return Resultado(True, f"'{aplicacion}' se ha escondido en la bandeja del sistema "
                                    "(sigue en marcha).", datos={**datos, "en_bandeja": True})

@@ -57,6 +57,17 @@
       "seleccionar todo": "control a"
     }
   },
+  "Steam": {
+    "nombres": ["steam"],
+    "botones": {
+      "ir a la biblioteca de juegos que tienes (para buscar uno: después escribir su nombre en el campo 'Buscar por nombre')": "Biblioteca",
+      "ir a la tienda": "Tienda",
+      "ir a la comunidad": "Comunidad"
+    },
+    "campos": {
+      "buscar un juego en la biblioteca (está tras pulsar 'Biblioteca')": "Buscar por nombre"
+    }
+  },
   "Explorador de archivos": {
     "nombres": ["explorador", "explorador de archivos"],
     "atajos": {

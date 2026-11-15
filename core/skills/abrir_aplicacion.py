@@ -134,7 +134,12 @@ class AbrirAplicacion(Skill):
         # se trae al frente su ventana directamente.
         existentes = _ventanas_de(nombres)
         if existentes:
-            ventana = sorted(existentes, key=lambda v: not es_visible(v))[0]
+            from core.skills.ventanas import elegir_entre   # aquí: ventanas.py importa este módulo
+            # Si hay varias (dos ventanas de Chrome), la que elegiste antes o se pregunta cuál.
+            ventana, duda = elegir_entre(sorted(existentes, key=lambda v: not es_visible(v)),
+                                         app.nombre, nombres)
+            if ventana is None:
+                return Resultado(False, duda)
             log.info("'%s' ya estaba abierta; la traigo al frente.", app.nombre)
             traer_al_frente(ventana["hwnd"])
             return Resultado(True, f"'{app.nombre}' ya estaba abierta; la he traído al frente.",
@@ -158,6 +163,11 @@ class AbrirAplicacion(Skill):
         limite = time.monotonic() + self.espera_max
         while time.monotonic() < limite:
             ventanas = _ventanas_de(datos["nombres"])
+            nuevas = [v for v in ventanas if es_visible(v) and v["hwnd"] not in antes]
+            if nuevas:
+                from core.skills.ventanas import recordar_ventana
+                recordar_ventana(nuevas[0])   # los pasos siguientes usan la ventana que se acaba de abrir
+                return True
             if any(es_visible(v) for v in ventanas):
                 return True
             # Algunas apps arrancan directamente escondidas en la bandeja.

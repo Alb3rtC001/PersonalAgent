@@ -1230,5 +1230,125 @@
   {
     "frase": "cancela la tarea número 7",
     "intencion": "cancelar_tarea"
+  },
+  {
+    "frase": "qué pone en la pantalla",
+    "intencion": "leer_pantalla"
+  },
+  {
+    "frase": "lee la pantalla",
+    "intencion": "leer_pantalla"
+  },
+  {
+    "frase": "dime qué pone en discord",
+    "intencion": "leer_pantalla"
+  },
+  {
+    "frase": "qué dice la ventana",
+    "intencion": "leer_pantalla"
+  },
+  {
+    "frase": "lee lo que pone en chrome",
+    "intencion": "leer_pantalla"
+  },
+  {
+    "frase": "quién hay en el canal general",
+    "intencion": "leer_pantalla"
+  },
+  {
+    "frase": "hay alguien en el canal de voz",
+    "intencion": "leer_pantalla"
+  },
+  {
+    "frase": "qué canción está sonando en spotify",
+    "intencion": "leer_pantalla"
+  },
+  {
+    "frase": "qué canción suena",
+    "intencion": "leer_pantalla"
+  },
+  {
+    "frase": "resume lo que hay en la pantalla",
+    "intencion": "leer_pantalla"
+  },
+  {
+    "frase": "qué pone en la calculadora",
+    "intencion": "leer_pantalla"
+  },
+  {
+    "frase": "lee el resumen de google",
+    "intencion": "leer_pantalla"
+  },
+  {
+    "frase": "dime qué dice la página",
+    "intencion": "leer_pantalla"
+  },
+  {
+    "frase": "qué mensajes hay en discord",
+    "intencion": "leer_pantalla"
+  },
+  {
+    "frase": "mira qué pone en steam",
+    "intencion": "leer_pantalla"
+  },
+  {
+    "frase": "dime qué hay en la ventana",
+    "intencion": "leer_pantalla"
+  },
+  {
+    "frase": "quién está conectado en discord",
+    "intencion": "leer_pantalla"
+  },
+  {
+    "frase": "qué resultado da la calculadora",
+    "intencion": "leer_pantalla"
+  },
+  {
+    "frase": "haz clic en ajustes",
+    "intencion": "hacer_clic"
+  },
+  {
+    "frase": "pulsa el botón de aceptar",
+    "intencion": "hacer_clic"
+  },
+  {
+    "frase": "dale al botón de jugar",
+    "intencion": "hacer_clic"
+  },
+  {
+    "frase": "clica en la tienda",
+    "intencion": "hacer_clic"
+  },
+  {
+    "frase": "haz clic en la pestaña de biblioteca",
+    "intencion": "hacer_clic"
+  },
+  {
+    "frase": "pincha en comunidad",
+    "intencion": "hacer_clic"
+  },
+  {
+    "frase": "pulsa la opción de configuración",
+    "intencion": "hacer_clic"
+  },
+  {
+    "frase": "dale a la pestaña de amigos",
+    "intencion": "hacer_clic"
+  },
+  {
+    "frase": "haz click en el enlace de inicio",
+    "intencion": "hacer_clic"
+  },
+  {
+    "frase": "pulsa el botón de buscar",
+    "intencion": "hacer_clic"
+  },
+  {
+    "frase": "clic en el menú de archivo",
+    "intencion": "hacer_clic"
+  },
+  {
+    "frase": "selecciona la pestaña de descargas",
+    "intencion": "hacer_clic"
   }
 ]

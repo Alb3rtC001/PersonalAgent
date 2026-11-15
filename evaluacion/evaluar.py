@@ -48,11 +48,18 @@ def _mismas_teclas(a: str, b: str) -> bool:
 
 
 def params_correctos(esperados: dict, obtenidos: dict) -> bool:
-    """Un valor esperado puede ser una lista de alternativas; None en ella = "puede faltar"."""
+    """
+    Un valor esperado puede ser una lista de alternativas; None en ella = "puede
+    faltar"; "*" = cualquier valor no vacío (p. ej. la pregunta de leer_pantalla,
+    que el LLM puede reformular).
+    """
     for clave, valor in esperados.items():
         validos = [v for v in (valor if isinstance(valor, list) else [valor])]
         if clave not in obtenidos:
             if None not in validos:
+                return False
+        elif "*" in validos:
+            if not str(obtenidos[clave]).strip():
                 return False
         elif clave == "teclas":
             if not any(v is not None and _mismas_teclas(obtenidos[clave], v) for v in validos):

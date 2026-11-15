@@ -207,6 +207,28 @@ Añade la app (o atajos nuevos) en `core/atajos_apps.json`:
 - Al LLM solo se le pasan los atajos de las apps que nombras y de la última
   que has usado, para no alargar el prompt.
 
+**Botones y campos** (para apps sin atajos, como Steam): con `botones` y
+`campos` el LLM sabe qué pulsar con `hacer_clic` y dónde escribir con
+`escribir_texto`. Pon el nombre tal como se ve en pantalla:
+
+```json
+"Steam": {
+  "nombres": ["steam"],
+  "botones": {
+    "ir a la biblioteca de juegos (para buscar uno: después escribir su nombre en el campo 'Buscar por nombre')": "Biblioteca",
+    "ir a la tienda": "Tienda"
+  },
+  "campos": {
+    "buscar un juego en la biblioteca (está tras pulsar 'Biblioteca')": "Buscar por nombre"
+  }
+}
+```
+
+Con eso, "busca en steam el juego slay the spire 2" se convierte en: abrir
+Steam (si no está abierto) → clic en "Biblioteca" → escribir "slay the
+spire 2" en "Buscar por nombre". Para saber cómo se llama un botón, pídele
+que pulse algo que no existe: te responde con los nombres que ve.
+
 **Órdenes de varios pasos:** "abre la calculadora, escribe 25*4 y pulsa
 enter" se ejecuta paso a paso. Si algún paso tiene consecuencias (pulsar
 teclas, cerrar...), primero te enseña el plan completo y lo confirmas una
@@ -241,6 +263,54 @@ programa en vez de hacerse ya:
 instalados (por nombre o siglas) y lo lanza con el protocolo de Steam, sin
 clics. `hay actualizaciones en steam` lee los archivos de Steam y te dice
 qué juegos tienen una actualización pendiente.
+
+## 4e. Preguntar por lo que hay en pantalla y elegir dónde escribir
+
+**Preguntar** (`leer_pantalla`): `qué pone en la pantalla de la
+calculadora`, `quién está conectado en discord`, `qué canción suena en
+spotify`, `resume lo que pone en opera`. Lee el texto de la ventana con la
+accesibilidad de Windows (sin capturas ni GPU extra) y el LLM responde. Si
+la app está cerrada o minimizada, la abre o la restaura antes. Solo lee:
+no pulsa ni escribe nada, y no lee ventanas de `VENTANAS_PROHIBIDAS`. Con
+el LLM desactivado te enseña el principio del texto tal cual. Algunas apps
+(juegos, ventanas dibujadas a mano como la de tkinter) no exponen su texto:
+entonces te lo dice.
+
+**Pulsar un botón** (`hacer_clic`): `en steam ve a la tienda`, `haz clic
+en ajustes en discord`. Busca el botón, pestaña o enlace visible por su
+nombre (sin coordenadas: da igual dónde esté la ventana), comprueba que no
+hay otra ventana encima, hace clic y te devuelve el ratón a donde estaba.
+Nunca pulsa botones de `CONTROLES_PROHIBIDOS` (comprar, pagar, borrar,
+desinstalar, cerrar sesión...): te pide que lo hagas tú. Si la orden la ha
+interpretado el LLM, te pide confirmación antes.
+
+**Elegir el campo** (`escribir_texto` con `campo`): `escribe pizza en el
+buscador de chrome`, `en telegram escribe hola en el campo del mensaje`.
+Si no dices el campo, escribe donde está el cursor (si está en un cuadro
+de texto de esa ventana) o en el único que haya; si hay varios, te
+pregunta cuál. En los campos de búsqueda (buscar, filtrar, direcciones)
+primero borra lo que hubiera (y comprueba que ha quedado vacío; si no, no
+escribe encima); en los demás (un mensaje a medias) se escribe a
+continuación, para no borrarte nada. Después lee el campo para comprobar que
+el texto está; si no está, la orden cuenta como fallida.
+
+**Varias ventanas de la misma app** (dos ventanas de Chrome, Steam y su
+"Lista de amigos"): el agente no elige a ciegas.
+1. Si solo hay una a la vista, esa.
+2. Si ya elegiste una en los últimos 15 min (`CADUCIDAD_CONTEXTO`), esa.
+   La que se acaba de abrir con "abre ..." también cuenta como elegida.
+3. La que se llama exactamente como la app ("Steam", no "Lista de amigos").
+4. Si sigue la duda, pregunta: "Hay 2 ventanas de 'google': 1) Correo -
+   Google Chrome; 2) YouTube - Google Chrome. ¿Cuál uso?". Responde con el
+   número ("2", "la segunda") o parte del título ("la de youtube").
+
+En las tareas programadas y en la API no hay a quién preguntar: si hay
+duda, no hace nada y lo dice.
+
+**Cerrar Steam** (`cierra steam`): usa su propia salida (`steam://exit`,
+como "Steam > Salir"), así que se cierra entero y **la sesión sigue
+iniciada**. Otras apps con salida propia se añaden en `CIERRE_LIMPIO`
+(`config.py`).
 
 ## 5. Crear una skill en Python
 
@@ -384,10 +454,13 @@ python -m evaluacion.evaluar --ordenes evaluacion\ordenes_control.json   # 30 fr
 
 ## 9. Lo que todavía no hace
 
-- **Leer la pantalla** ("¿hay alguien en el canal?", "¿qué pone?"): fase 5.
 - **Contexto entre órdenes** ("abre WhatsApp" → "escríbele a mamá"): fase 4.
-- **Plantillas frágiles:** las grabaciones repiten clics por coordenadas;
-  si la ventana cambia de sitio o de tamaño pueden fallar (fase 5: UI Automation).
+- **Recordar el campo por app:** si eliges "el buscador" en una app, la
+  próxima vez no lo recuerda solo (hay que volver a decirlo).
+- **Apps sin accesibilidad** (juegos, lienzos): no puede leerlas ni elegir
+  campos en ellas; haría falta visión, que pide más GPU.
+- **Plantillas antiguas frágiles:** las del grabador antiguo repiten clics
+  por coordenadas; las de `grabar` (sección 4) no tienen ese problema.
 - **Aprendizaje automático:** el paso de episodios al dataset es manual
   (sección 6); automatizarlo y el LoRA son la fase 6.
 - **Clasificador pequeño:** el bag-of-words se sustituirá por un

@@ -13,7 +13,7 @@ agente autónomo con planificación abierta -> Gestión por voz para Móvil con 
 > **Nueva arquitectura:** ver [ARQUITECTURA.md](ARQUITECTURA.md).
 > Todo lo que el agente sabe hacer son *skills* en `core/skills/`
 > (`crear_nota`, `abrir_aplicacion`, `cerrar_aplicacion`, `restaurar_ventana`,
-> `escribir_texto`, `pulsar_teclas`) más las
+> `escribir_texto`, `pulsar_teclas`, `hacer_clic`, `leer_pantalla`, Steam y tareas) más las
 > plantillas grabadas publicadas en `recorder/catalogo.json`.
 > Cada orden queda registrada en `data/episodios.jsonl`.
 
@@ -500,10 +500,9 @@ Los errores más comunes de `build_templates.py`:
    frases reales que no se limpian bien.
 4. Cuando el catálogo de acciones crezca a 5+, reentrena el modelo con
    nuevas frases de ejemplo para cada intención nueva.
-5. **OCR para clics variables**: para acciones donde el punto de clic
-   depende del contenido de la pantalla (ej. seleccionar un contacto
-   en una lista), se necesita reconocimiento de texto en pantalla.
-   Candidato: `pytesseract` o `easyocr`, ambos 100% locales.
+5. ~~**OCR para clics variables**~~: resuelto sin OCR con UI Automation
+   (fase 5): la grabadora guarda controles, no coordenadas, y
+   `leer_pantalla` lee el texto de las ventanas.
 
 ---
 
