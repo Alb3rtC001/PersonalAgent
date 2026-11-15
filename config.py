@@ -147,6 +147,21 @@ elif _modo_llm == "cpu":
 elif _modo_llm in ("1", "on", "si", "sí", "true", "gpu"):
     LLM_ACTIVO = True
 
+# ---------------------------------------------------------------------------
+# Voz (core/voz.py): botón del micrófono de la interfaz
+# ---------------------------------------------------------------------------
+# Reconocimiento de voz local con faster-whisper (MIT), en la CPU: no usa VRAM
+# y el audio no sale del PC ni se guarda en disco.
+RUTA_MODELO_VOZ = RUTA_MODELOS / "faster-whisper-small"
+VOZ_IDIOMA = "es"
+VOZ_HILOS_CPU = 4
+VOZ_MAX_SEGUNDOS = 30          # tope de una grabación
+VOZ_SILENCIO_FIN = 1.5         # segundos callado (después de hablar) que terminan la grabación
+VOZ_ESPERA_SIN_VOZ = 8         # si en estos segundos no se oye nada, se deja de escuchar
+# True: la orden reconocida se envía sola. False: se queda en el cuadro de texto
+# para que la revises y pulses Enter (más seguro mientras pruebas la voz).
+VOZ_ENVIAR_AL_TERMINAR = False
+
 # Datos generados por el agente (no se suben a git).
 RUTA_DATOS = Path(__file__).parent / "data"
 RUTA_NOTAS = RUTA_DATOS / "notas"                  # notas creadas por crear_nota

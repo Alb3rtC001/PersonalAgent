@@ -19,6 +19,11 @@ comtypes==1.4.17
 fastapi==0.162.5
 uvicorn==0.54.0
 
+# Voz (botón del micrófono): voz a texto local en la CPU (MIT). El modelo
+# (Whisper small, ~460 MB) va en models/faster-whisper-small: ver models/README.md
+faster-whisper==1.2.1
+sounddevice==0.5.6
+
 # Desarrollo y tests
 pytest==9.2.0
 httpx==0.28.1

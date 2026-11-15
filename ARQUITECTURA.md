@@ -333,8 +333,13 @@ Cada fase termina con algo que funciona de punta a punta.
 - **Fase 6 — Aprendizaje continuo.** Episodios → dataset → reentreno del
   clasificador y LoRA del LLM; propuesta automática de skills compuestas a
   partir de secuencias repetidas.
-- **Fase 7 — Voz.** faster-whisper (voz a texto), Piper (texto a voz),
-  openWakeWord (palabra de activación).
+- **Fase 7 — Voz** (empezada antes, a petición). faster-whisper (voz a
+  texto), Piper (texto a voz), openWakeWord (palabra de activación).
+  - ✅ Botón del micrófono en la interfaz (`core/voz.py`): graba hasta que
+    te callas (o pulsas otra vez) y Whisper "small" lo pasa a texto en la
+    CPU con int8 (no usa VRAM; ~2 s para una orden de 3 s). El texto va al
+    cuadro para revisarlo (`VOZ_ENVIAR_AL_TERMINAR`). El audio no se guarda.
+  - ⏳ Texto a voz (Piper) y palabra de activación (openWakeWord).
 - **Fase 8 — Móvil y domótica.** App cliente contra la API del PC;
   domótica vía Home Assistant (local).
 

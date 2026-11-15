@@ -333,6 +333,22 @@ como "Steam > Salir"), así que se cierra entero y **la sesión sigue
 iniciada**. Otras apps con salida propia se añaden en `CIERRE_LIMPIO`
 (`config.py`).
 
+## 4f. Hablarle (botón del micrófono)
+
+En la interfaz, el micrófono junto a "enviar":
+
+1. Púlsalo (se pone rojo: "● escuchando…") y di la orden.
+2. Termina solo cuando te callas 1,5 s (`VOZ_SILENCIO_FIN`), o al pulsarlo
+   otra vez. Si no oye nada en 8 s, lo deja (¿micrófono silenciado?).
+3. Lo que ha entendido aparece en el cuadro de texto: revísalo y pulsa
+   Enter. Si prefieres que se envíe solo, pon `VOZ_ENVIAR_AL_TERMINAR = True`
+   en `config.py`.
+
+Todo es local: Whisper "small" (`models/faster-whisper-small`) en la CPU,
+sin VRAM y sin internet; el audio no se guarda en ningún sitio. Usa el
+micrófono por defecto de Windows. El botón de pánico (o Ctrl+Alt+P) también
+corta la escucha.
+
 ## 5. Crear una skill en Python
 
 Para acciones que se pueden hacer con código (más robustas que una

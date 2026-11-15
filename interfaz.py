@@ -32,8 +32,8 @@ import tkinter as tk
 from datetime import timedelta
 from tkinter import messagebox, simpledialog
 
-from config import LLM_ACTIVO
-from core import control
+from config import LLM_ACTIVO, VOZ_ENVIAR_AL_TERMINAR, VOZ_MAX_SEGUNDOS
+from core import control, voz
 from core.agente import Agente, limpiar_texto
 from core.comandos import AYUDA, atajo_legible, describir_llm, ejecutar_comando, iniciar_atajo_panico, pausar_por_panico  # noqa: E501
 from core.seguridad import escuchar, registrar_actividad
@@ -63,6 +63,57 @@ def rectangulo_redondeado(lienzo: tk.Canvas, x1, y1, x2, y2, r, **opciones) -> i
     return lienzo.create_polygon(puntos, smooth=True, **opciones)
 
 
+class BotonMicrofono(tk.Canvas):
+    """
+    Botón redondo con un micrófono dibujado (cápsula, soporte y pie), con los
+    colores de la libreta. Estados: "listo" (naranja), "escuchando" (rojo,
+    relleno) y desactivado (gris, mientras el agente trabaja).
+    """
+
+    TAM = 34
+
+    def __init__(self, padre: tk.Widget, command):
+        super().__init__(padre, width=self.TAM, height=self.TAM, background=PAPEL_OSCURO,
+                         highlightthickness=0, borderwidth=0, cursor="hand2")
+        self._command = command
+        self._activo, self._encima, self.escuchando = True, False, False
+        self.bind("<Button-1>", lambda _: self._activo and self._command())
+        self.bind("<Enter>", lambda _: self._hover(True))
+        self.bind("<Leave>", lambda _: self._hover(False))
+        self._dibujar()
+
+    def _hover(self, encima: bool) -> None:
+        self._encima = encima
+        self._dibujar()
+
+    def activar(self, activo: bool) -> None:
+        self._activo = activo
+        self.configure(cursor="hand2" if activo else "arrow")
+        self._dibujar()
+
+    def poner_escuchando(self, escuchando: bool) -> None:
+        self.escuchando = escuchando
+        self._dibujar()
+
+    def _dibujar(self) -> None:
+        self.delete("all")
+        if not self._activo:
+            color, relleno = COLORES["aviso"], ""
+        elif self.escuchando:
+            color, relleno = COLORES["error"], COLORES["error"]
+        else:
+            color, relleno = (MARRON if self._encima else NARANJA), ""
+        c, w = self.TAM / 2, 2
+        if self._encima and self._activo:
+            self.create_oval(2, 2, self.TAM - 2, self.TAM - 2, outline=color, width=1)
+        # Cápsula del micrófono
+        rectangulo_redondeado(self, c - 5, 6, c + 5, 20, 5, outline=color, fill=relleno or PAPEL_OSCURO, width=w)
+        # Soporte en U, mástil y pie
+        self.create_arc(c - 9, 9, c + 9, 24, start=180, extent=180, style="arc", outline=color, width=w)
+        self.create_line(c, 24, c, 28, fill=color, width=w)
+        self.create_line(c - 5, 28, c + 5, 28, fill=color, width=w, capstyle="round")
+
+
 class ManejadorVentana(logging.Handler):
     """Pasa los avisos del agente (nivel INFO) a la ventana, desde cualquier hilo."""
 
@@ -84,6 +135,10 @@ class Interfaz:
         self.agente = agente
         self.cola: queue.Queue = queue.Queue()
         self.ocupado = False
+        # Voz: la grabación en curso (o None) y el modelo de voz (se carga al usarlo).
+        self.grabacion: voz.Grabacion | None = None
+        self.transcribiendo = False
+        self.transcriptor = voz.Transcriptor()
 
         raiz.title("Personal Agent")
         raiz.geometry("760x620")
@@ -136,7 +191,11 @@ class Interfaz:
         self.boton_enviar = tk.Button(marco_entrada, text="✎ enviar", font=(LETRA, 11, "bold"), fg=NARANJA,
                                       activeforeground=MARRON, bg=PAPEL_OSCURO, activebackground=PAPEL_OSCURO,
                                       relief="flat", borderwidth=0, cursor="hand2", command=self.enviar)
-        self.boton_enviar.grid(row=0, column=2, padx=(4, 10))
+        self.boton_enviar.grid(row=0, column=3, padx=(4, 10))
+        # Micrófono (fase de voz): dibujado en un lienzo para que se vea igual en
+        # todos los Windows (los emojis en tkinter salen a veces como un cuadro).
+        self.boton_micro = BotonMicrofono(marco_entrada, command=self.microfono)
+        self.boton_micro.grid(row=0, column=2, padx=(4, 0))
 
         # 3. Control (barra inferior, como los iconos del ejemplo): programar + pánico
         marco_control = tk.Frame(tarjeta, background=PAPEL)
@@ -305,7 +364,85 @@ class Interfaz:
         self.ocupado = ocupado
         self.boton_enviar.configure(state="disabled" if ocupado else "normal",
                                     text="trabajando…" if ocupado else "✎ enviar")
+        # Mientras graba sigue activo (para poder pararlo); mientras transcribe, no.
+        self.boton_micro.activar(self.grabacion is not None or (not ocupado and not self.transcribiendo))
         self._estado()
+
+    # --- Micrófono -------------------------------------------------------------------
+
+    def microfono(self) -> None:
+        """
+        Pulsar: empieza a escuchar. Pulsar otra vez (o callarse un momento después
+        de hablar): deja de escuchar, se transcribe en la CPU y el texto va al cuadro.
+        """
+        if self.grabacion is not None:
+            self.grabacion.parar("boton")
+            return
+        if self.ocupado or self.transcribiendo:
+            return
+        if control.en_pausa():
+            self.escribir("■ El agente está en pausa (botón de pánico): reanúdalo para usar la voz.", "error")
+            return
+        problema = voz.disponible()
+        if problema:
+            self.escribir(f"🎤 La voz no está lista: {problema}.", "error")
+            return
+        self.transcriptor.precargar()   # se carga mientras hablas
+        self.grabacion = voz.Grabacion(al_terminar=lambda audio, motivo: self.raiz.after(
+            0, self._voz_grabada, audio, motivo))
+        try:
+            self.grabacion.iniciar()
+        except Exception as e:
+            self.grabacion = None
+            self.escribir(f"🎤 No puedo usar el micrófono: {e}", "error")
+            return
+        self.boton_micro.poner_escuchando(True)
+        self.estado.configure(text="● escuchando…", fg=COLORES["error"])
+        self.escribir("🎤 Te escucho… (habla; termino cuando te calles o al pulsar otra vez el micrófono)",
+                      "aviso")
+
+    def _voz_grabada(self, audio, motivo: str) -> None:
+        self.grabacion = None
+        self.boton_micro.poner_escuchando(False)
+        if audio is None:
+            self._estado()
+            textos = {"panico": "■ He dejado de escuchar (botón de pánico).",
+                      "sin_voz": "🎤 No te he oído; prueba otra vez (¿micrófono silenciado?)."}
+            self.escribir(textos.get(motivo, f"🎤 No he podido grabar ({motivo})."), "aviso")
+            return
+        self.transcribiendo = True
+        self.boton_micro.activar(False)
+        self.estado.configure(text="● entendiendo…", fg=NARANJA)
+        if motivo == "tope":
+            self.escribir(f"  … Llegué al tope de {VOZ_MAX_SEGUNDOS} s de grabación.", "aviso")
+
+        def transcribir():
+            try:
+                texto, error = self.transcriptor.transcribir(audio), None
+            except Exception as e:
+                logging.getLogger("personalagent").exception("Error transcribiendo la voz:")
+                texto, error = "", str(e)
+            self.raiz.after(0, self._voz_texto, texto, error)
+        threading.Thread(target=transcribir, daemon=True).start()
+
+    def _voz_texto(self, texto: str, error: str | None) -> None:
+        self.transcribiendo = False
+        self.boton_micro.activar(not self.ocupado)
+        self._estado()
+        if error:
+            self.escribir(f"🎤 Error al entender la voz: {error}", "error")
+            return
+        if not texto:
+            self.escribir("🎤 No te he entendido; prueba otra vez.", "aviso")
+            return
+        self.entrada.delete(0, "end")
+        self.entrada.insert(0, texto)
+        if VOZ_ENVIAR_AL_TERMINAR:
+            self.enviar()
+        else:
+            self.entrada.focus_set()
+            self.entrada.icursor("end")
+            self.escribir(f"🎤 He entendido: «{texto}». Revísalo y pulsa Enter para enviarlo.", "aviso")
 
     def _estado(self) -> None:
         """Indicador de la barra superior: ● listo / ● trabajando… / ■ en pausa."""
