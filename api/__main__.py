@@ -15,6 +15,7 @@ from api.servidor import crear_app
 from api.token import VARIABLE_ENTORNO, obtener_token
 from config import API_HOST, API_PUERTO, LLM_ACTIVO, RUTA_TOKEN
 from core.agente import Agente
+from core.comandos import atajo_legible, iniciar_atajo_panico, pausar_por_panico
 from core.traza import configurar_logs
 
 
@@ -34,9 +35,10 @@ def main() -> None:
     host_visible = "127.0.0.1" if API_HOST in ("0.0.0.0", "") else API_HOST
     print(f"PersonalAgent API en http://{host_visible}:{API_PUERTO}  (docs: /docs)", flush=True)
     print(f"Token (cabecera X-Token) guardado en: {origen}", flush=True)
-    agente = Agente(usar_llm=LLM_ACTIVO and not args.sin_llm or args.llm_cpu, llm_cpu=args.llm_cpu)
+    agente = Agente(usar_llm=LLM_ACTIVO and not args.sin_llm or args.llm_cpu, llm_cpu=args.llm_cpu, canal="api")
     agente.precargar()
     agente.iniciar_agenda()   # ejecuta las órdenes programadas a su hora
+    iniciar_atajo_panico(lambda: pausar_por_panico("api", atajo_legible()))   # Ctrl+Alt+P en este PC
     estado = agente.estado_llm()
     print("LLM: " + (f"activo ({estado['modelo']})" if estado["activo"] else "desactivado (solo clasificador)")
           + ". Se puede cambiar en marcha con POST /llm.", flush=True)

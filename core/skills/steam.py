@@ -179,6 +179,7 @@ class EjecutarEnSteam(Skill):
                    "Admite el nombre del juego o sus siglas (cs2).")
     parametros = {"juego": "Nombre del juego tal como lo dice el usuario"}
     confirmar_si_llm = True   # lanzar un juego ocupa el PC: si lo dedujo el LLM, se pregunta
+    riesgo = "medio"
     coste = 2
 
     def __init__(self, espera_max: float = ESPERA_MAX_JUEGO):
@@ -225,6 +226,7 @@ class ActualizacionesSteam(Skill):
     descripcion = ("Dice qué juegos de Steam tienen actualizaciones pendientes (lo lee de los "
                    "archivos de Steam, no hace falta abrirlo).")
     parametros = {}
+    riesgo = "lectura"
     coste = 1
 
     def ejecutar(self) -> Resultado:

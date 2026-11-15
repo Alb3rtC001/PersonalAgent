@@ -13,6 +13,8 @@ GET    /episodios?limite=20   últimas órdenes registradas
 POST   /ordenes               {"texto": "..."}               → Respuesta
 POST   /ordenes/{id}          {"dato": "..."} o {"confirmar": true|false} → Respuesta
 DELETE /ordenes/{id}          descartar una orden pendiente
+POST   /pausa                 {"pausa": true} botón de pánico; false para reanudar
+GET    /actividad             registro de actividad (qué hizo, quién lo pidió, cómo acabó)
 GET    /tareas                tareas programadas ("abre steam a las 17:30") y su estado
 DELETE /tareas/{id}           cancelar una tarea programada
 GET    /llm                   estado del LLM (activo, cargado, modelo, gpu)
@@ -44,6 +46,9 @@ from api.token import obtener_token
 from config import CADUCIDAD_PENDIENTES
 from core.agente import Agente
 from core.memoria import cargar_episodios
+from core import control
+from core.comandos import pausar_por_panico
+from core.seguridad import registrar_actividad, ultima_actividad
 from core.router import Interpretacion
 from core.skills.base import Resultado
 
@@ -62,6 +67,10 @@ class OrdenNueva(BaseModel):
 class Contestacion(BaseModel):
     dato: str | None = None
     confirmar: bool | None = None
+
+
+class CambioPausa(BaseModel):
+    pausa: bool
 
 
 class CambioLLM(BaseModel):
@@ -146,6 +155,21 @@ def crear_app(agente: Agente | None = None, token: str | None = None) -> FastAPI
     @app.get("/salud")
     def salud() -> dict[str, Any]:
         return {"ok": True, "skills": len(agente.registro)}
+
+    @app.post("/pausa", dependencies=protegido)
+    def pausa(cambio: CambioPausa) -> dict[str, bool]:
+        """{"pausa": true} = botón de pánico (corta y pausa); {"pausa": false} = reanudar."""
+        if cambio.pausa:
+            pausar_por_panico("api", "POST /pausa")
+        elif control.en_pausa():
+            control.reanudar()
+            registrar_actividad("api", "Agente reanudado.")
+        return {"pausa": control.en_pausa()}
+
+    @app.get("/actividad", dependencies=protegido)
+    def actividad(limite: int = 50) -> list[str]:
+        """Últimas líneas del registro de actividad (qué hizo el agente, quién lo pidió, cómo acabó)."""
+        return ultima_actividad(max(1, min(limite, 500)))
 
     @app.get("/tareas", dependencies=protegido)
     def tareas(limite: int = 20) -> list[dict[str, Any]]:

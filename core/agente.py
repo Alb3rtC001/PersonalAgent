@@ -36,6 +36,7 @@ from core.estado import normalizar
 from core.skills.agenda import SKILLS_DE_AGENDA, usar_agenda
 from core.tiempo import describir_cuando, separar_tiempo
 from core.executor import Confirmar, ejecutar_orden
+from core.seguridad import avisar, necesita_confirmacion, registrar_actividad
 from core.traza import nueva_orden
 from core.memoria import registrar_episodio
 from core.registro import REGISTRO
@@ -57,8 +58,9 @@ class Agente:
                  registro: dict[str, Skill] | None = None,
                  ruta_episodios: Path | None = None,
                  usar_llm: bool = LLM_ACTIVO, llm_cpu: bool = False,
-                 ruta_bd: Path | None = None):
+                 ruta_bd: Path | None = None, canal: str = "consola"):
         self.registro = REGISTRO if registro is None else registro
+        self.canal = canal   # quién da las órdenes: consola, interfaz, api (para el registro de actividad)
         self.router = router or Router(self.registro, usar_llm=usar_llm, llm_cpu=llm_cpu)
         self.ruta_episodios = ruta_episodios
         self.ruta_bd = ruta_bd
@@ -121,6 +123,7 @@ class Agente:
         if interp is None:
             interp = self._interpretar_texto(texto, contexto)
         if interp.motivo_rechazo:
+            registrar_actividad(self.canal, f"«{texto}» no entendida: {interp.motivo_rechazo}", False)
             # Las frases rechazadas también se guardan: son candidatas a ampliar el dataset.
             registrar_episodio(
                 {"texto": texto, "skill": None, "intencion": interp.intencion,
@@ -155,13 +158,20 @@ class Agente:
 
     def ejecutar(self, interp: Interpretacion, params: dict[str, Any],
                  confirmar: Confirmar | None = None) -> Resultado:
+        quien = "agenda" if interp.origen == "agenda" else self.canal
         if control.en_pausa():
-            return Resultado(False, "El agente está en pausa (botón de pánico): reanúdalo para seguir.")
-        try:
-            return self._ejecutar(interp, params, confirmar)
-        except control.Detenido:
-            log.info("Orden detenida con el botón de pánico.")
-            return Resultado(False, control.MENSAJE, datos={"detenido": True})
+            resultado = Resultado(False, "El agente está en pausa (botón de pánico): reanúdalo para seguir.")
+        else:
+            try:
+                resultado = self._ejecutar(interp, params, confirmar)
+            except control.Detenido:
+                log.info("Orden detenida con el botón de pánico.")
+                resultado = Resultado(False, control.MENSAJE, datos={"detenido": True})
+            finally:
+                avisar(None)   # fin: la interfaz quita el recuadro de "trabajando"
+        if not resultado.falta:   # si falta un dato la orden sigue abierta: se registra al acabar
+            registrar_actividad(quien, f"«{interp.texto}» [{interp.skill}] {resultado.mensaje}", resultado.ok)
+        return resultado
 
     def _ejecutar(self, interp: Interpretacion, params: dict[str, Any],
                   confirmar: Confirmar | None = None) -> Resultado:
@@ -303,8 +313,7 @@ class Agente:
         log.debug("Plan de %d pasos: %s", len(pasos), descripcion)
         # El plan lo ha construido el LLM: si algún paso tiene consecuencias, se
         # confirma el plan entero UNA vez, enseñándolo, en vez de paso a paso.
-        delicado = any(self.registro[n].requiere_confirmacion or self.registro[n].confirmar_si_llm
-                       for n, _ in pasos)
+        delicado = any(necesita_confirmacion(self.registro[n], interp.origen) for n, _ in pasos)
         if delicado and (confirmar is None or not confirmar(descripcion)):
             log.debug("Plan sin confirmar: no se ejecuta.")
             return Resultado(False, f"Necesita confirmación: {descripcion}",

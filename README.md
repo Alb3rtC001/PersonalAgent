@@ -122,6 +122,19 @@ Una ventana con tres zonas:
 
 Las confirmaciones y los datos que falten salen en ventanas emergentes.
 
+**Seguridad y control** (todo en `config.py`, ver `core/seguridad.py`):
+
+- **Ctrl+Alt+P** (`ATAJO_PANICO`) para el agente desde cualquier ventana, igual que el botón.
+- Mientras actúa, un **aviso siempre encima** (arriba en el centro) dice qué está haciendo.
+- **Niveles de riesgo**: lectura / bajo / medio / alto, y `POLITICA_RIESGO` decide cuándo se
+  confirma cada uno (por defecto: cerrar apps y lanzar juegos si lo dedujo el LLM; pulsar
+  teclas y plantillas grabadas, siempre). `seguro on` → confirma todo menos la lectura.
+- **Ventanas prohibidas** (`VENTANAS_PROHIBIDAS`): nunca escribe ni hace clic en gestores
+  de contraseñas, banca, terminales, el registro…
+- **Registro de actividad** (`data/actividad.log`): una línea por acción, con quién la pidió
+  y cómo acabó. Comando `actividad` (últimas 15).
+- Comandos: `llm`, `seguro`, `actividad`, `reanudar`, `ayuda`, `salir`.
+
 ## 4b. Usar el agente desde la consola (sin servidor)
 
 ```powershell
@@ -183,6 +196,7 @@ Para pararlo, `Ctrl+C` en la terminal del servidor.
 | `data/notas/`               | Notas creadas                                                    |
 | `data/episodios.jsonl`      | Una línea por orden: texto, skill, quién la interpretó (`origen`: clasificador o llm), plan, pasos, si funcionó |
 | `data/agente.db`            | Tareas programadas (SQLite) |
+| `data/actividad.log`        | Registro de actividad: qué hizo, quién lo pidió (consola, interfaz, api, agenda) y cómo acabó |
 | `data/ultima_orden.log`     | **Traza de la última orden**: qué entendió el clasificador y el LLM, el plan, cada paso con su duración y los errores con la línea del código. Cada orden nueva la sobrescribe |
 | `data/llm_servidor.log`     | Salida del servidor del LLM (para diagnosticar si no arranca)    |
 | `data/api_token.txt`        | Token de la API (bórralo para generar uno nuevo)                 |

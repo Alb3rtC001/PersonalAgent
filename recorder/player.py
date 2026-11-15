@@ -34,6 +34,8 @@ try:
 except ImportError:
     WINDOW_MANAGER_DISPONIBLE = False
 
+from core.seguridad import registrar_actividad, ventana_prohibida
+
 ESPERA_ENTRE_EVENTOS = 0.5
 ESPERA_TRAS_CLIC = 0.3
 
@@ -179,6 +181,15 @@ def reproducir_plantilla(plantilla: list[dict], slot: str) -> LogEjecucion:
             titulo_ventana_evento = valor.get("ventana", {}).get("titulo", "")
 
         descripcion = _describir_paso(i + 1, tipo, valor, slot)
+
+        # Nunca teclear ni hacer clic en una ventana prohibida (contraseñas, banca, terminales...).
+        if tipo in ("click", "escribir", "tecla_especial") and WINDOW_MANAGER_DISPONIBLE:
+            prohibida = ventana_prohibida(obtener_ventana_activa())
+            if prohibida:
+                registrar_actividad("seguridad", f"Plantilla detenida: {prohibida}", False)
+                log.error(descripcion, prohibida)
+                print(f"\n  Ejecución interrumpida en paso {i + 1} (ventana prohibida).")
+                break
 
         # Verificar que la ventana correcta está activa
         if tipo in ("click", "escribir") and titulo_ventana_evento:

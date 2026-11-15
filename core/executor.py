@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from core import control
+from core.seguridad import avisar, necesita_confirmacion
 from core.estado import EstadoMundo
 from core.memoria import registrar_episodio
 from core.planner import Paso, planificar
@@ -32,6 +33,7 @@ log = logging.getLogger("personalagent")
 
 def _ejecutar_paso(skill: Skill, params: dict[str, Any]) -> Resultado:
     log.debug("Ejecutando %s", skill.describir_paso(params))
+    avisar(skill.describir_paso(params))   # p. ej. el recuadro de la interfaz
     t0 = time.monotonic()
     try:
         control.comprobar()
@@ -77,7 +79,7 @@ def _ejecutar_plan(
     resultado = Resultado(False, "Plan vacío.")
     for paso in plan:
         skill = registro[paso.skill]
-        if skill.requiere_confirmacion or (origen == "llm" and skill.confirmar_si_llm):
+        if necesita_confirmacion(skill, origen):
             descripcion = skill.describir_paso(paso.params)
             confirmado = confirmar is not None and confirmar(descripcion)
             log.debug("Confirmación de %s: %s", descripcion, "sí" if confirmado else "no")

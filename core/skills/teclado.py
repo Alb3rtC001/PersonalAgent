@@ -22,6 +22,7 @@ import time
 from core import control
 from core.estado import hwnd_activo, poner_foco
 from core.skills.abrir_aplicacion import AppInstalada, listar_apps_instaladas
+from core.seguridad import registrar_actividad, ventana_prohibida
 from core.skills.base import Resultado, Skill
 from core.skills.ventanas import nombres_de_app, ventana_principal
 from core.teclado import (
@@ -58,6 +59,10 @@ class _EnAplicacion(Skill):
         ventana = ventana_principal(nombres_de_app(aplicacion, self._apps))
         if ventana is None:
             return None, f"No encuentro ninguna ventana abierta de '{aplicacion}'."
+        prohibida = ventana_prohibida(ventana)
+        if prohibida:
+            registrar_actividad("seguridad", f"Bloqueado {self.nombre}: {prohibida}", False)
+            return None, prohibida
         ya_tenia_foco = hwnd_activo() == ventana["hwnd"]
         if not poner_foco(ventana["hwnd"]):
             return None, (f"No he podido darle el foco a '{ventana['titulo']}' (Windows no lo ha "
@@ -127,6 +132,7 @@ class PulsarTeclas(_EnAplicacion):
     # y, si las propone el LLM, se confirman antes de pulsarlas.
     parametros_sin_anclar = frozenset({"teclas"})
     confirmar_si_llm = True   # un Enter puede enviar un mensaje; alt+f4 cierra la ventana
+    riesgo = "alto"
     coste = 1
 
     def comprobar_valores(self, params: dict) -> str | None:

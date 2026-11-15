@@ -65,6 +65,7 @@ class SkillPlantilla(Skill):
         self.requiere_confirmacion = (tiene_pasos_definitivos(plantilla)
                                       or bool(meta.get("requiere_confirmacion", False)))
         self.confirmar_si_llm = bool(meta.get("confirmar_si_llm", False))
+        self.riesgo = meta.get("riesgo", "alto")   # clics grabados: alto salvo que el catálogo diga otra cosa
 
     def ejecutar(self, **params: Any) -> Resultado:
         slot = str(params.get(self._parametro, "")) if self._parametro else ""

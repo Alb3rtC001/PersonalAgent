@@ -36,6 +36,36 @@ ESPERA_MAX_CIERRE = 10
 # Nunca se termina si queda alguna ventana visible (p. ej. "¿Guardar cambios?").
 CERRAR_TERMINA_BANDEJA = True
 
+# ---------------------------------------------------------------------------
+# Seguridad (core/seguridad.py)
+# ---------------------------------------------------------------------------
+# Cuándo se pide confirmación según el riesgo de cada skill:
+#   lectura: solo consulta (ver tareas, actualizaciones de Steam)
+#   bajo:    abrir, restaurar, escribir texto (sin Enter), crear notas
+#   medio:   cerrar aplicaciones, lanzar juegos
+#   alto:    pulsar teclas (un Enter puede enviar algo), plantillas grabadas (clics)
+# Valores: "nunca", "si_llm" (si la orden la interpretó el LLM) o "siempre".
+POLITICA_RIESGO = {"lectura": "nunca", "bajo": "nunca", "medio": "si_llm", "alto": "siempre"}
+# Modo seguro: todo lo que no sea de lectura se confirma siempre. También se
+# activa en marcha con "seguro on" / "seguro off".
+MODO_SEGURO = False
+# Ventanas sobre las que el agente NUNCA escribe ni hace clic (teclado y
+# plantillas grabadas). Se compara, sin mayúsculas ni tildes, con el título
+# (si lo contiene) y con el nombre del proceso (si es igual).
+VENTANAS_PROHIBIDAS = [
+    # gestores de contraseñas
+    "keepass.exe", "keepassxc.exe", "bitwarden.exe", "1password.exe", "contraseña", "password",
+    # banca y pagos
+    "banco", "banca online", "paypal", "bizum",
+    # terminales y herramientas del sistema
+    "powershell.exe", "pwsh.exe", "cmd.exe", "windowsterminal.exe", "regedit.exe", "taskmgr.exe",
+    "mmc.exe", "editor del registro",
+]
+# Combinación global (en cualquier ventana) que para el agente como el botón de
+# pánico. Formato de pynput. Ctrl+Alt+P ("parar"): no la usa Windows (Ctrl+Alt+Esc
+# no sirve: Windows usa Alt+Esc para mandar la ventana al fondo).
+ATAJO_PANICO = "<ctrl>+<alt>+p"
+
 # Segundos que el agente recuerda "la última aplicación usada" (para "escribe
 # 2+2" o "pulsa enter" sin decir dónde, después de "abre la calculadora").
 CADUCIDAD_CONTEXTO = 15 * 60
@@ -69,7 +99,7 @@ RUTA_MODELO_LLM = RUTA_MODELOS / "qwen3-8b" / "Qwen3-8B-Q4_K_M.gguf"
 # no funciona con llama-server; ChatML es el mismo formato.)
 LLM_PLANTILLA_CHAT = "chatml"
 LLM_PUERTO = 8766            # solo en 127.0.0.1
-LLM_CAPAS_GPU = 99           # 99 = todo el modelo en la GPU; 0 = solo CPU (mucho más lento)
+LLM_CAPAS_GPU = 79           # 99 = todo el modelo en la GPU; 0 = solo CPU (mucho más lento)
 LLM_CONTEXTO = 4096
 LLM_ESPERA_ARRANQUE = 120    # segundos máximos para cargar el modelo
 # Opciones de memoria de llama-server (medido con Qwen3-8B en la RTX 3060 Ti):
@@ -111,6 +141,9 @@ RUTA_EPISODIOS = RUTA_DATOS / "episodios.jsonl"    # historial de órdenes ejecu
 # Traza detallada (paso a paso, con errores y líneas de código) de la ÚLTIMA
 # orden; cada orden nueva la sobrescribe. Para saber qué pasó si algo falla.
 RUTA_TRAZA = RUTA_DATOS / "ultima_orden.log"
+# Registro de actividad legible y permanente: una línea por acción, quién la
+# pidió (consola, interfaz, api, agenda) y cómo acabó. Comando "actividad".
+RUTA_ACTIVIDAD = RUTA_DATOS / "actividad.log"
 # Memoria: cuántas de tus órdenes pasadas parecidas (que salieron bien) se le
 # enseñan al LLM como ejemplos en cada consulta. Así aprende de tu uso sin
 # reentrenar. 0 = desactivado.

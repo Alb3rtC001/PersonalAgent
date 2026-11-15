@@ -255,8 +255,14 @@ Cada fase termina con algo que funciona de punta a punta.
     el agente en pausa, también la agenda, hasta reanudar.
   - ✅ Interfaz (`interfaz.py`): respuestas, entrada, temporizador (min/s) y
     botón de pánico.
-  - ⏳ Aviso visible mientras actúa, niveles de riesgo y modo seguro, lista de
-    ventanas prohibidas, registro de actividad legible.
+  - ✅ Aviso siempre encima mientras actúa (sin robar el foco) y atajo global
+    de pánico Ctrl+Alt+P (`ATAJO_PANICO`).
+  - ✅ Niveles de riesgo por skill (lectura, bajo, medio, alto) con
+    `POLITICA_RIESGO` y modo seguro (`seguro on/off`) — `core/seguridad.py`.
+  - ✅ Ventanas prohibidas (`VENTANAS_PROHIBIDAS`): ni el teclado ni las
+    plantillas actúan sobre contraseñas, banca, terminales, registro...
+  - ✅ Registro de actividad legible (`data/actividad.log`, comando
+    `actividad`, `GET /actividad`) y `POST /pausa` en la API.
 - **Fase 5 — Grabadora semántica + LLM (decidido; `uiautomation` 2.0.29 y
   `comtypes` 1.4.17 instalados).** UI Automation (CPU,
   sin GPU): la grabadora guarda el control pulsado (tipo, nombre,

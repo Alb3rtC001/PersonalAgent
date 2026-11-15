@@ -29,17 +29,34 @@ import queue
 import threading
 import tkinter as tk
 from datetime import timedelta
-from tkinter import messagebox, scrolledtext, simpledialog
+from tkinter import messagebox, simpledialog
 
 from config import LLM_ACTIVO
 from core import control
 from core.agente import Agente, limpiar_texto
+from core.comandos import AYUDA, atajo_legible, describir_llm, ejecutar_comando, iniciar_atajo_panico, pausar_por_panico  # noqa: E501
+from core.seguridad import escuchar, registrar_actividad
 from core.traza import configurar_logs
-from dispatcher import describir_llm
 
 MAX_MINUTOS, MAX_SEGUNDOS = 99, 60
-FUENTE = ("Consolas", 10)
-COLORES = {"ok": "#1a7f37", "error": "#c62828", "aviso": "#6b6b6b", "orden": "#1f4e9c", "sistema": "#8a5a00"}
+
+# Estilo "libreta": tarjeta crema con borde y sombra marrón, letra de máquina de
+# escribir y acentos naranjas.
+FONDO = "#FFFFFF"        # alrededor de la tarjeta
+PAPEL = "#F6EBDA"        # la tarjeta
+PAPEL_OSCURO = "#EEDFC8" # cuadro de escritura
+MARRON = "#5B3A26"       # borde, sombra y texto
+NARANJA = "#F0A01E"      # acentos
+LETRA = "Courier New"
+FUENTE = (LETRA, 11)
+COLORES = {"ok": "#3F7D3A", "error": "#B3261E", "aviso": "#9C8571", "orden": "#C77D0A", "sistema": MARRON}
+RADIO, BORDE, SOMBRA, MARGEN = 26, 3, 12, 22
+
+
+def rectangulo_redondeado(lienzo: tk.Canvas, x1, y1, x2, y2, r, **opciones) -> int:
+    puntos = [x1 + r, y1, x2 - r, y1, x2, y1, x2, y1 + r, x2, y2 - r, x2, y2,
+              x2 - r, y2, x1 + r, y2, x1, y2, x1, y2 - r, x1, y1 + r, x1, y1]
+    return lienzo.create_polygon(puntos, smooth=True, **opciones)
 
 
 class ManejadorVentana(logging.Handler):
@@ -64,53 +81,108 @@ class Interfaz:
         self.cola: queue.Queue = queue.Queue()
         self.ocupado = False
 
-        raiz.title("PersonalAgent")
-        raiz.geometry("820x560")
-        raiz.minsize(560, 380)
-        raiz.columnconfigure(0, weight=1)
-        raiz.rowconfigure(0, weight=1)
+        raiz.title("Personal Agent")
+        raiz.geometry("760x620")
+        raiz.minsize(560, 460)
+        raiz.configure(background=FONDO)
+
+        # La tarjeta (con esquinas redondeadas y sombra) se dibuja en un lienzo;
+        # el contenido va en un marco colocado encima.
+        self.lienzo = tk.Canvas(raiz, background=FONDO, highlightthickness=0)
+        self.lienzo.pack(fill="both", expand=True)
+        tarjeta = tk.Frame(self.lienzo, background=PAPEL)
+        self._ventana_tarjeta = self.lienzo.create_window(0, 0, anchor="nw", window=tarjeta)
+        self.lienzo.bind("<Configure>", self._dibujar_tarjeta)
+        tarjeta.columnconfigure(0, weight=1)
+        tarjeta.rowconfigure(2, weight=1)
+
+        # Barra superior: "‹ Agente" a la izquierda, estado a la derecha (como el ejemplo)
+        barra = tk.Frame(tarjeta, background=PAPEL)
+        barra.grid(row=0, column=0, sticky="ew", pady=(4, 0))
+        barra.columnconfigure(1, weight=1)
+        tk.Label(barra, text="‹ Agente", font=(LETRA, 12, "bold"), fg=NARANJA, bg=PAPEL).grid(row=0, column=0)
+        self.estado = tk.Label(barra, text="● listo", font=(LETRA, 10, "bold"), fg=NARANJA, bg=PAPEL)
+        self.estado.grid(row=0, column=2)
+        tk.Label(tarjeta, text="personal agent", font=(LETRA, 18, "bold"), fg=MARRON, bg=PAPEL,
+                 anchor="w").grid(row=1, column=0, sticky="ew", pady=(10, 4))
 
         # 1. Respuestas
-        self.salida = scrolledtext.ScrolledText(raiz, font=FUENTE, wrap="word", state="disabled",
-                                                padx=8, pady=6, background="#fbfbfb")
-        self.salida.grid(row=0, column=0, sticky="nsew", padx=8, pady=(8, 4))
+        # Sin barra de desplazamiento (en Windows no se puede colorear y rompe el
+        # estilo): se desplaza con la rueda del ratón y siempre baja a lo último.
+        self.salida = tk.Text(
+            tarjeta, font=FUENTE, wrap="word", state="disabled", padx=2, pady=4, background=PAPEL,
+            foreground=MARRON, relief="flat", borderwidth=0, highlightthickness=0, spacing1=2, spacing3=2,
+            cursor="arrow")
+        self.salida.grid(row=2, column=0, sticky="nsew")
         for etiqueta, color in COLORES.items():
             self.salida.tag_configure(etiqueta, foreground=color)
-        self.salida.tag_configure("orden", foreground=COLORES["orden"], font=(*FUENTE, "bold"))
+        self.salida.tag_configure("orden", foreground=COLORES["orden"], font=(LETRA, 11, "bold"))
 
         # 2. Entrada
-        marco_entrada = tk.Frame(raiz)
-        marco_entrada.grid(row=1, column=0, sticky="ew", padx=8, pady=4)
+        marco_entrada = tk.Frame(tarjeta, background=PAPEL_OSCURO, highlightthickness=2,
+                                 highlightbackground=MARRON, highlightcolor=NARANJA)
+        marco_entrada.grid(row=3, column=0, sticky="ew", pady=(10, 8))
         marco_entrada.columnconfigure(1, weight=1)
-        tk.Label(marco_entrada, text=">", font=(*FUENTE, "bold")).grid(row=0, column=0, padx=(0, 4))
-        self.entrada = tk.Entry(marco_entrada, font=("Consolas", 11))
-        self.entrada.grid(row=0, column=1, sticky="ew", ipady=4)
+        tk.Label(marco_entrada, text=">", font=(LETRA, 12, "bold"), fg=NARANJA,
+                 bg=PAPEL_OSCURO).grid(row=0, column=0, padx=(8, 2))
+        self.entrada = tk.Entry(marco_entrada, font=(LETRA, 12), fg=MARRON, bg=PAPEL_OSCURO,
+                                insertbackground=MARRON, relief="flat", borderwidth=0)
+        self.entrada.grid(row=0, column=1, sticky="ew", ipady=7)
         self.entrada.bind("<Return>", lambda _: self.enviar())
-        self.boton_enviar = tk.Button(marco_entrada, text="Enviar", width=10, command=self.enviar)
-        self.boton_enviar.grid(row=0, column=2, padx=(6, 0))
+        self.boton_enviar = tk.Button(marco_entrada, text="✎ enviar", font=(LETRA, 11, "bold"), fg=NARANJA,
+                                      activeforeground=MARRON, bg=PAPEL_OSCURO, activebackground=PAPEL_OSCURO,
+                                      relief="flat", borderwidth=0, cursor="hand2", command=self.enviar)
+        self.boton_enviar.grid(row=0, column=2, padx=(4, 10))
 
-        # 3. Control: programar + botón de pánico
-        marco_control = tk.Frame(raiz)
-        marco_control.grid(row=2, column=0, sticky="ew", padx=8, pady=(4, 8))
+        # 3. Control (barra inferior, como los iconos del ejemplo): programar + pánico
+        marco_control = tk.Frame(tarjeta, background=PAPEL)
+        marco_control.grid(row=4, column=0, sticky="ew", pady=(2, 4))
         marco_control.columnconfigure(5, weight=1)
-        tk.Label(marco_control, text="Programar dentro de").grid(row=0, column=0, padx=(0, 6))
+        estilo_texto = dict(font=(LETRA, 11, "bold"), fg=NARANJA, bg=PAPEL)
+        estilo_caja = dict(font=(LETRA, 11, "bold"), fg=MARRON, bg=PAPEL_OSCURO, buttonbackground=PAPEL_OSCURO,
+                           relief="flat", highlightthickness=2, highlightbackground=MARRON,
+                           highlightcolor=NARANJA, width=3, justify="center", validate="key")
+        tk.Label(marco_control, text="⏱ programar en", **estilo_texto).grid(row=0, column=0, padx=(0, 8))
         validar = (raiz.register(self._validar_numero), "%P", "%W")
-        self.minutos = tk.Spinbox(marco_control, from_=0, to=MAX_MINUTOS, width=4, justify="center",
-                                  validate="key", validatecommand=validar, name="minutos")
+        self.minutos = tk.Spinbox(marco_control, from_=0, to=MAX_MINUTOS, validatecommand=validar,
+                                  name="minutos", **estilo_caja)
         self.minutos.grid(row=0, column=1)
-        tk.Label(marco_control, text="min").grid(row=0, column=2, padx=(2, 8))
-        self.segundos = tk.Spinbox(marco_control, from_=0, to=MAX_SEGUNDOS, width=4, justify="center",
-                                   validate="key", validatecommand=validar, name="segundos")
+        tk.Label(marco_control, text="min", **estilo_texto).grid(row=0, column=2, padx=(4, 10))
+        self.segundos = tk.Spinbox(marco_control, from_=0, to=MAX_SEGUNDOS, validatecommand=validar,
+                                   name="segundos", **estilo_caja)
         self.segundos.grid(row=0, column=3)
-        tk.Label(marco_control, text="s   (0 y 0 = ahora)").grid(row=0, column=4, padx=(2, 8))
-        self.boton_panico = tk.Button(marco_control, text="■  PARAR", width=16, font=("Segoe UI", 10, "bold"),
-                                      fg="white", bg="#c62828", activebackground="#8e0000",
-                                      activeforeground="white", command=self.panico)
-        self.boton_panico.grid(row=0, column=6, sticky="e")
+        tk.Label(marco_control, text="s", **estilo_texto).grid(row=0, column=4, padx=(4, 10))
+        self.boton_panico = tk.Button(marco_control, text="■ PARAR", width=13, font=(LETRA, 12, "bold"),
+                                      fg=PAPEL, bg=COLORES["error"], activeforeground=PAPEL,
+                                      activebackground=MARRON, relief="flat", borderwidth=0, cursor="hand2",
+                                      command=self.panico)
+        self.boton_panico.grid(row=0, column=6, sticky="e", ipady=5)
+        self._tarjeta = tarjeta
 
         logging.getLogger("personalagent").addHandler(ManejadorVentana(self.cola))
+        # Aviso siempre encima mientras actúa (también en las tareas programadas).
+        self.aviso = Aviso(raiz)
+        self.avisos: queue.Queue = queue.Queue()
+        escuchar(self.avisos.put)
         raiz.after(100, self._vaciar_cola)
+        self._estado()
         self.entrada.focus_set()
+
+    def _dibujar_tarjeta(self, evento) -> None:
+        """Sombra marrón desplazada + tarjeta crema con borde, redondeadas (se redibuja al cambiar el tamaño)."""
+        ancho, alto = evento.width, evento.height
+        x1, y1 = MARGEN, MARGEN
+        x2, y2 = ancho - MARGEN - SOMBRA, alto - MARGEN - SOMBRA
+        self.lienzo.delete("tarjeta")
+        rectangulo_redondeado(self.lienzo, x1 + SOMBRA, y1 + SOMBRA, x2 + SOMBRA, y2 + SOMBRA, RADIO,
+                              fill=MARRON, outline=MARRON, tags="tarjeta")
+        rectangulo_redondeado(self.lienzo, x1, y1, x2, y2, RADIO, fill=PAPEL, outline=MARRON,
+                              width=BORDE, tags="tarjeta")
+        self.lienzo.tag_lower("tarjeta")
+        relleno = RADIO // 2 + 12   # que el contenido no pise las esquinas redondeadas
+        self.lienzo.coords(self._ventana_tarjeta, x1 + relleno, y1 + 10)
+        self.lienzo.itemconfigure(self._ventana_tarjeta, width=max(1, x2 - x1 - 2 * relleno),
+                                  height=max(1, y2 - y1 - 20))
 
     # --- Salida -------------------------------------------------------------------
 
@@ -125,6 +197,15 @@ class Interfaz:
                 self.salida.insert("end", texto + "\n", estilo or ())
                 self.salida.configure(state="disabled")
                 self.salida.see("end")
+        except queue.Empty:
+            pass
+        try:
+            while True:
+                aviso = self.avisos.get_nowait()
+                if aviso:
+                    self.aviso.mostrar(aviso)
+                else:
+                    self.aviso.ocultar()
         except queue.Empty:
             pass
         self.raiz.after(100, self._vaciar_cola)
@@ -182,10 +263,12 @@ class Interfaz:
         if texto.lower() == "salir":
             self.raiz.destroy()
             return
-        if texto.lower() in ("llm", "llm on", "llm off"):
-            if texto.lower() != "llm":
-                self.agente.activar_llm(texto.lower() == "llm on")
-            self.escribir("  " + describir_llm(self.agente.estado_llm()), "sistema")
+        respuesta = ejecutar_comando(self.agente, texto, "interfaz")
+        if respuesta is not None:
+            self.escribir(f"> {texto}", "orden")
+            for linea in respuesta.splitlines():
+                self.escribir("  " + linea, "sistema")
+            self._actualizar_boton()   # 'reanudar' cambia el estado del botón de pánico
             return
 
         programar_en = self._tiempo()
@@ -214,20 +297,101 @@ class Interfaz:
     def _ocupar(self, ocupado: bool) -> None:
         self.ocupado = ocupado
         self.boton_enviar.configure(state="disabled" if ocupado else "normal",
-                                    text="Trabajando…" if ocupado else "Enviar")
+                                    text="trabajando…" if ocupado else "✎ enviar")
+        self._estado()
+
+    def _estado(self) -> None:
+        """Indicador de la barra superior: ● listo / ● trabajando… / ■ en pausa."""
+        if control.en_pausa():
+            self.estado.configure(text="■ en pausa", fg=COLORES["error"])
+        elif self.ocupado:
+            self.estado.configure(text="● trabajando…", fg=NARANJA)
+        else:
+            self.estado.configure(text="● listo", fg=COLORES["ok"])
 
     # --- Botón de pánico -----------------------------------------------------------
 
-    def panico(self) -> None:
+    def panico(self, como: str = "el botón de pánico") -> None:
         if control.en_pausa():
             control.reanudar()
-            self.boton_panico.configure(text="■  PARAR", bg="#c62828", activebackground="#8e0000")
+            registrar_actividad("interfaz", "Agente reanudado.")
             self.escribir("▶ Agente reanudado.", "sistema")
         else:
-            control.detener()
-            self.boton_panico.configure(text="▶  REANUDAR", bg="#1a7f37", activebackground="#0f5223")
-            self.escribir("■ PARADO: lo que estuviera haciendo se corta y no hará nada más (tampoco las "
-                          "tareas programadas) hasta que pulses Reanudar.", "error")
+            pausar_por_panico("interfaz", como)
+            self.escribir(f"■ PARADO ({como}): lo que estuviera haciendo se corta y no hará nada más "
+                          "(tampoco las tareas programadas) hasta que pulses Reanudar.", "error")
+        self._actualizar_boton()
+
+    def parar_por_atajo(self) -> None:
+        """El atajo global solo para (reanudar, con el botón o el comando 'reanudar')."""
+        if not control.en_pausa():
+            self.panico(atajo_legible())
+
+    def _actualizar_boton(self) -> None:
+        if control.en_pausa():
+            self.boton_panico.configure(text="▶ REANUDAR", bg=COLORES["ok"])
+        else:
+            self.boton_panico.configure(text="■ PARAR", bg=COLORES["error"])
+        self._estado()
+
+
+class Aviso:
+    """
+    Recuadro siempre encima, arriba en el centro de la pantalla, con lo que está
+    haciendo el agente. NO se activa al mostrarse (WS_EX_NOACTIVATE): si robara
+    el foco, el texto iría a parar a él en vez de a la app donde se escribe.
+    """
+
+    WS_EX_TOPMOST, WS_EX_TOOLWINDOW, WS_EX_NOACTIVATE = 0x8, 0x80, 0x08000000
+    SW_HIDE, SW_SHOWNOACTIVATE = 0, 4
+
+    def __init__(self, raiz: tk.Tk):
+        self.raiz = raiz
+        self.ventana = tk.Toplevel(raiz, background=MARRON)
+        self.ventana.overrideredirect(True)
+        self.ventana.attributes("-topmost", True)
+        self.ventana.attributes("-alpha", 0.94)
+        self.etiqueta = tk.Label(self.ventana, font=(LETRA, 11, "bold"), fg=NARANJA, bg=PAPEL,
+                                 padx=14, pady=7, justify="left")
+        self.etiqueta.pack(padx=3, pady=3)   # borde marrón de 3 px, como la tarjeta
+        self.ventana.update_idletasks()
+        self.hwnd = int(self.ventana.wm_frame(), 16)
+        try:
+            import ctypes
+            self.user32 = ctypes.windll.user32
+            estilo = self.user32.GetWindowLongW(self.hwnd, -20)
+            self.user32.SetWindowLongW(self.hwnd, -20, estilo | self.WS_EX_TOPMOST
+                                       | self.WS_EX_TOOLWINDOW | self.WS_EX_NOACTIVATE)
+        except (AttributeError, OSError):
+            self.user32 = None
+        self.ventana.withdraw()
+        self._ocultar_id = None
+
+    def mostrar(self, texto: str) -> None:
+        if self._ocultar_id:
+            self.raiz.after_cancel(self._ocultar_id)
+            self._ocultar_id = None
+        texto = texto if len(texto) <= 70 else texto[:67] + "…"
+        self.etiqueta.configure(text=f"🤖 El agente está actuando: {texto}\n    {atajo_legible()} para parar")
+        self.ventana.update_idletasks()
+        ancho = self.ventana.winfo_reqwidth()
+        x = (self.raiz.winfo_screenwidth() - ancho) // 2
+        self.ventana.geometry(f"+{x}+14")
+        if self.user32:
+            self.user32.ShowWindow(self.hwnd, self.SW_SHOWNOACTIVATE)
+        else:
+            self.ventana.deiconify()
+
+    def ocultar(self, tras_ms: int = 900) -> None:
+        def ocultar_ya():
+            self._ocultar_id = None
+            if self.user32:
+                self.user32.ShowWindow(self.hwnd, self.SW_HIDE)
+            else:
+                self.ventana.withdraw()
+        if self._ocultar_id:
+            self.raiz.after_cancel(self._ocultar_id)
+        self._ocultar_id = self.raiz.after(tras_ms, ocultar_ya)
 
 
 def main() -> None:
@@ -238,11 +402,14 @@ def main() -> None:
 
     configurar_logs(consola=False)   # los avisos van a la ventana; la traza, a data/ultima_orden.log
     raiz = tk.Tk()
-    agente = Agente(usar_llm=LLM_ACTIVO and not args.sin_llm or args.llm_cpu, llm_cpu=args.llm_cpu)
+    agente = Agente(usar_llm=LLM_ACTIVO and not args.sin_llm or args.llm_cpu, llm_cpu=args.llm_cpu,
+                    canal="interfaz")
     interfaz = Interfaz(raiz, agente)
+    iniciar_atajo_panico(lambda: raiz.after(0, interfaz.parar_por_atajo))
     interfaz.escribir(describir_llm(agente.estado_llm()), "sistema")
-    interfaz.escribir("Escribe una orden y pulsa Enter. 'llm off' / 'llm on' para el LLM; 'salir' para cerrar.",
+    interfaz.escribir(f"Escribe una orden y pulsa Enter. {atajo_legible()} para el agente desde cualquier ventana.",
                       "sistema")
+    interfaz.escribir(AYUDA, "sistema")
     agente.precargar()
     agente.iniciar_agenda()
     raiz.mainloop()

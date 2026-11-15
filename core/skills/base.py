@@ -58,6 +58,9 @@ class Skill(ABC):
     parametros: dict[str, str] = {}             # obligatorios: nombre -> descripción
     parametros_opcionales: dict[str, str] = {}  # opcionales:   nombre -> descripción
     requiere_confirmacion: bool = False         # acciones irreversibles: siempre se confirman
+    # Riesgo: "lectura", "bajo", "medio" o "alto". POLITICA_RIESGO (config.py) decide
+    # cuándo se confirma cada nivel (core/seguridad.py).
+    riesgo: str = "bajo"
     # Acciones con consecuencias (cerrar una app...): se confirman cuando la orden
     # la ha interpretado el LLM y no el clasificador entrenado con tus frases.
     confirmar_si_llm: bool = False
@@ -144,6 +147,7 @@ class Skill(ABC):
             "parametros_opcionales": self.parametros_opcionales,
             "requiere_confirmacion": self.requiere_confirmacion,
             "confirmar_si_llm": self.confirmar_si_llm,
+            "riesgo": self.riesgo,
             "precondiciones": self.PRECONDICIONES,
             "efectos": self.EFECTOS,
         }

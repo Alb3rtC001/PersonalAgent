@@ -9,7 +9,8 @@ Uso:
     python dispatcher.py --sin-llm    # solo clasificador (no usa la GPU)
     python dispatcher.py --llm-cpu    # LLM sin GPU (lento)
 
-En marcha: 'llm off' / 'llm on' / 'llm'.
+Comandos: llm, seguro, actividad, reanudar, ayuda, salir (core/comandos.py).
+Ctrl+Alt+P (ATAJO_PANICO en config.py) para el agente desde cualquier ventana.
 """
 
 from __future__ import annotations
@@ -18,7 +19,10 @@ import argparse
 
 from config import LLM_ACTIVO
 from core.agente import Agente, limpiar_texto
+from core.comandos import AYUDA, atajo_legible, describir_llm, ejecutar_comando, iniciar_atajo_panico, pausar_por_panico  # noqa: E501
 from core.traza import configurar_logs
+
+__all__ = ["describir_llm", "main"]   # describir_llm: compatibilidad con quien lo importaba de aquí
 
 
 def pedir(pregunta: str) -> str:
@@ -26,37 +30,8 @@ def pedir(pregunta: str) -> str:
 
 
 def confirmar(accion: str) -> bool:
-    respuesta = input(f"  ⚠ Acción definitiva: {accion}. ¿Continuar? (s/n) > ")
+    respuesta = input(f"  ⚠ Confirma: {accion}. ¿Continuar? (s/n) > ")
     return respuesta.strip().lower() in ("s", "si", "sí", "y", "yes")
-
-
-def describir_llm(estado: dict) -> str:
-    gpu = ""
-    if estado.get("vram_libre_mib") is not None:
-        gpu = f" GPU: {estado['vram_libre_mib']} MiB libres, {estado['temperatura_gpu']} °C."
-    if not estado["activo"]:
-        return "LLM desactivado: solo clasificador, sin usar la GPU." + gpu
-    carga = "cargado" if estado["cargado"] else "se cargará cuando haga falta"
-    donde = "GPU" if estado["gpu"] else "CPU"
-    if estado["cargado"] and estado.get("capas_en_gpu") is not None and estado.get("capas_totales"):
-        donde = f"{estado['capas_en_gpu']} de {estado['capas_totales']} capas en la GPU"
-        if estado.get("vram_llm_mib"):
-            donde += f", {estado['vram_llm_mib']} MiB"
-    limite = f", límite {estado['vram_max_mib']} MiB" if estado.get("vram_max_mib") else ""
-    return f"LLM activo ({estado['modelo']}, {donde}{limite}, {carga})." + gpu
-
-
-def comando_llm(agente: Agente, texto: str) -> bool:
-    """Comandos 'llm', 'llm on', 'llm off'. Devuelve True si el texto era uno de ellos."""
-    partes = texto.strip().lower().split()
-    if not partes or partes[0] != "llm" or len(partes) > 2:
-        return False
-    if len(partes) == 2 and partes[1] not in ("on", "off"):
-        return False
-    if len(partes) == 2:
-        agente.activar_llm(partes[1] == "on")
-    print("  " + describir_llm(agente.estado_llm()))
-    return True
 
 
 def main() -> None:
@@ -72,12 +47,19 @@ def main() -> None:
     configurar_logs()
 
     usar_llm = LLM_ACTIVO and not args.sin_llm or args.llm_cpu
-    agente = Agente(usar_llm=usar_llm, llm_cpu=args.llm_cpu)
+    agente = Agente(usar_llm=usar_llm, llm_cpu=args.llm_cpu, canal="consola")
     agente.precargar()
     agente.iniciar_agenda()   # ejecuta las órdenes programadas a su hora
+
+    def panico():
+        pausar_por_panico("consola", atajo_legible())
+        print(f"\n■ PARADO ({atajo_legible()}): escribe 'reanudar' para seguir.")
+    iniciar_atajo_panico(panico)
+
     print(describir_llm(agente.estado_llm()))
-    print("Escribe una orden (o 'salir' para terminar). Ctrl+C cancela la orden en curso.")
-    print("'llm off' / 'llm on' desactiva o activa el LLM; 'llm' muestra su estado.")
+    print(f"Escribe una orden (o 'salir' para terminar). Ctrl+C cancela la orden en curso; "
+          f"{atajo_legible()} para el agente desde cualquier ventana.")
+    print(AYUDA)
     while True:
         try:
             texto = limpiar_texto(input("> "))
@@ -85,7 +67,11 @@ def main() -> None:
             break
         if texto.strip().lower() == "salir":
             break
-        if not texto.strip() or comando_llm(agente, texto):
+        if not texto.strip():
+            continue
+        respuesta = ejecutar_comando(agente, texto, "consola")
+        if respuesta is not None:
+            print("\n".join("  " + linea for linea in respuesta.splitlines()))
             continue
         try:
             resultado = agente.procesar(texto, pedir=pedir, confirmar=confirmar)

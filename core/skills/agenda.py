@@ -40,6 +40,7 @@ class VerTareas(Skill):
     nombre = "ver_tareas"
     descripcion = "Dice qué órdenes hay programadas para más tarde (la agenda)."
     parametros = {}
+    riesgo = "lectura"
 
     def ejecutar(self) -> Resultado:
         pendientes = agenda_actual().pendientes()
