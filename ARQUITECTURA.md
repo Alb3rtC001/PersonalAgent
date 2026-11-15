@@ -318,7 +318,7 @@ Cada fase termina con algo que funciona de punta a punta.
     memoria daba error 400 y caía al clasificador.
   - Lección: un éxito falso envenena la memoria (el LLM copia la orden
     "que salió bien"). La verificación honesta de cada skill es lo que
-    protege el aprendizaje de la fase 6.
+    protege el aprendizaje de la fase 7.
   - ⏳ Lo que sigue: recordar el campo elegido por app (`data/campos.json`)
     y el plan del LLM a partir de los controles de una app nueva.
   Diseño original: UI Automation (CPU,
@@ -330,16 +330,20 @@ Cada fase termina con algo que funciona de punta a punta.
   pone?"). Campo destino de `escribir_texto` (§11). Apps nuevas: el LLM
   propone un plan a partir de la lista de controles de la ventana, se
   confirma y se guarda si funciona; si no, "hazlo tú y lo grabo".
-- **Fase 6 — Aprendizaje continuo.** Episodios → dataset → reentreno del
-  clasificador y LoRA del LLM; propuesta automática de skills compuestas a
-  partir de secuencias repetidas.
-- **Fase 7 — Voz** (empezada antes, a petición). faster-whisper (voz a
-  texto), Piper (texto a voz), openWakeWord (palabra de activación).
+- **Fase 6 — Voz (hecha).** faster-whisper (voz a texto) en la CPU.
   - ✅ Botón del micrófono en la interfaz (`core/voz.py`): graba hasta que
     te callas (o pulsas otra vez) y Whisper "small" lo pasa a texto en la
-    CPU con int8 (no usa VRAM; ~2 s para una orden de 3 s). El texto va al
-    cuadro para revisarlo (`VOZ_ENVIAR_AL_TERMINAR`). El audio no se guarda.
-  - ⏳ Texto a voz (Piper) y palabra de activación (openWakeWord).
+    CPU con int8 (no usa VRAM; ~2 s para una orden de 3 s). El audio no se
+    guarda.
+  - ✅ Confirmación de palabra, sin teclado: la orden queda en el cuadro y el
+    micrófono sigue escuchando unos segundos; "enviar"/"enter" la manda,
+    "cancelar" la borra y otra frase la sustituye. Un "sí" suelto no manda
+    nada (`VOZ_ESCUCHAR_CONFIRMACION`, `VOZ_ENVIAR_AL_TERMINAR`).
+  - ⏳ Opcional, más adelante: texto a voz (Piper) y palabra de activación
+    (openWakeWord).
+- **Fase 7 — Aprendizaje continuo.** Episodios → dataset → reentreno del
+  clasificador y LoRA del LLM; propuesta automática de skills compuestas a
+  partir de secuencias repetidas.
 - **Fase 8 — Móvil y domótica.** App cliente contra la API del PC;
   domótica vía Home Assistant (local).
 
@@ -433,7 +437,7 @@ frase ──► modelo propio pequeño (nlu/, entrenado aquí con tus frases)
 - El LLM solo entra cuando el modelo propio no está seguro. Sus respuestas
   correctas (confirmadas por el resultado del episodio) se añaden al
   dataset: con el tiempo el modelo propio cubre más y el LLM se usa menos
-  (fase 6).
+  (fase 7).
 - El sesgo del LLM influye poco: no opina ni redacta, solo elige una skill
   del catálogo con salida restringida, y el executor confirma lo arriesgado
   y verifica el resultado.

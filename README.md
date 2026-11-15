@@ -272,7 +272,7 @@ asistente/
 
 ## Cómo funciona el sistema (resumen)
 
-1. Escribes una orden (`"quiero jugar a Destiny 2"`) en la consola o la envías a la API. __Más adelante será con voz__
+1. Escribes una orden (`"quiero jugar a Destiny 2"`), en la consola o la API, o la dices con el micrófono de la interfaz (voz local, fase 6).
 2. El **router** usa el clasificador de intención (PyTorch) para decidir la skill (`ejecutar_en_steam`) y extrae el parámetro (`juego = "Destiny 2"`). Si el clasificador duda (confianza baja, intención `"ninguna"`, palabras que no conoce...), pregunta al **LLM local** (Qwen3-8B), que solo puede responder una skill del catálogo con sus parámetros. Si tampoco hay skill, no hace nada.
 3. El **planificador** mira el estado real de Windows y calcula qué hace falta antes (abrir Steam o restaurarlo).
 4. El **executor** ejecuta cada paso, pide confirmación en los irreversibles, verifica que ha funcionado, replanifica una vez si algo falla y registra el episodio.

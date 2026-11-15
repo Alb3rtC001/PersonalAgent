@@ -48,7 +48,7 @@ Lo importante para enseñarle cosas: **hay tres "palancas" distintas**.
 
 El LLM (Qwen3) **no se reentrena** de momento: se le "enseña" con el
 catálogo y los ejemplos. Ajustar sus pesos con tus episodios (LoRA) es la
-fase 6, cuando haya cientos de órdenes reales registradas (sección 7).
+fase 7, cuando haya cientos de órdenes reales registradas (sección 7).
 
 ---
 
@@ -462,7 +462,7 @@ Hoy, sin reentrenarlo:
    `models/`, compáralo con `python -m evaluacion.evaluar --via llm
    --modelo <ruta>` y, si gana, cambia `RUTA_MODELO_LLM` en `config.py`.
 
-Más adelante (fase 6), **ajuste fino con LoRA**: con unos cientos de
+Más adelante (fase 7), **ajuste fino con LoRA**: con unos cientos de
 episodios reales correctos se entrena un "parche" pequeño sobre Qwen3 en
 tu GPU (con QLoRA, un 8B cabe justo en 8 GB) y se carga junto al modelo en
 llama.cpp. Requiere un entorno aparte con PyTorch CUDA (Python 3.12).
@@ -508,6 +508,6 @@ python -m evaluacion.evaluar --ordenes evaluacion\ordenes_control.json   # 30 fr
 - **Plantillas antiguas frágiles:** las del grabador antiguo repiten clics
   por coordenadas; las de `grabar` (sección 4) no tienen ese problema.
 - **Aprendizaje automático:** el paso de episodios al dataset es manual
-  (sección 6); automatizarlo y el LoRA son la fase 6.
+  (sección 6); automatizarlo y el LoRA son la fase 7.
 - **Clasificador pequeño:** el bag-of-words se sustituirá por un
   transformer pequeño propio que también extraiga los parámetros.
