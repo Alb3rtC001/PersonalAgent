@@ -27,15 +27,18 @@ import argparse
 import json
 import logging
 import queue
+import re
 import threading
+import time
 import tkinter as tk
 from datetime import timedelta
-from tkinter import messagebox, simpledialog
+from tkinter import simpledialog
 
-from config import (LLM_ACTIVO, VOZ_ENVIAR_AL_TERMINAR, VOZ_ESCUCHAR_CONFIRMACION,
+from config import (LLM_ACTIVO, VOZ_ENVIAR_AL_TERMINAR, VOZ_ESCUCHA_DIALOGO, VOZ_ESCUCHAR_CONFIRMACION,
                     VOZ_ESPERA_CONFIRMACION, VOZ_MAX_SEGUNDOS)
 from core import control, voz
 from core.agente import Agente, limpiar_texto
+from core.legible import accion_legible
 from core.comandos import AYUDA, atajo_legible, describir_llm, ejecutar_comando, iniciar_atajo_panico, pausar_por_panico  # noqa: E501
 from core.seguridad import escuchar, registrar_actividad
 from core.skills.grabada import SkillGrabada, guardar_grabacion, nombre_valido
@@ -142,6 +145,7 @@ class Interfaz:
         # True mientras se escucha (sin pulsar nada) si confirmas la orden dictada.
         self.esperando_confirmacion = False
         self.dictado: str | None = None     # la última orden dictada que espera confirmación
+        self.orden_por_voz = False          # la orden en curso se envió de palabra
         self.transcriptor = voz.Transcriptor()
 
         raiz.title("Personal Agent")
@@ -312,20 +316,32 @@ class Interfaz:
         return caja.get("valor")
 
     def confirmar(self, accion: str) -> bool:
-        respuesta = self._en_ventana(lambda: messagebox.askyesno(
-            "Confirmar acción", f"El agente va a hacer:\n\n{accion}\n\n¿Continuar?", parent=self.raiz))
-        self.escribir(f"  {'✔ confirmado' if respuesta else '✘ no confirmado'}: {accion}", "sistema")
+        codigo = self._codigo_voz()
+        respuesta, por_voz = self._en_ventana(lambda: DialogoSeguridad(self, "si_no", accion, codigo).abrir())
+        como = " (de palabra, con el código)" if por_voz else ""
+        self.escribir(f"  {'✔ confirmado' if respuesta else '✘ no confirmado'}{como}: {accion}", "sistema")
         return bool(respuesta)
 
     def pedir(self, pregunta: str) -> str:
-        return self._en_ventana(lambda: simpledialog.askstring("Falta un dato", pregunta, parent=self.raiz)) or ""
+        codigo = self._codigo_voz()
+        respuesta, por_voz = self._en_ventana(lambda: DialogoSeguridad(self, "texto", pregunta, codigo).abrir())
+        if por_voz and respuesta:
+            self.escribir(f"  🎤 Respuesta de palabra: {respuesta}", "sistema")
+        return respuesta or ""
+
+    def _codigo_voz(self) -> str:
+        """El código si las ventanas de esta orden se pueden contestar de palabra; "" si no."""
+        if not self.orden_por_voz or voz.disponible():
+            return ""
+        return voz.codigo_seguridad()
 
     # --- Órdenes --------------------------------------------------------------------
 
-    def enviar(self) -> None:
+    def enviar(self, por_voz: bool = False) -> None:
         texto = limpiar_texto(self.entrada.get())
         if not texto or self.ocupado:
             return
+        self.orden_por_voz = por_voz
         # Si estaba escuchando la confirmación de voz, ya no hace falta.
         self.dictado = None
         if self.grabacion is not None and self.esperando_confirmacion:
@@ -401,9 +417,13 @@ class Interfaz:
             self.escribir(f"🎤 La voz no está lista: {problema}.", "error")
             return
         self.transcriptor.precargar()   # se carga mientras hablas
+        # La orden: hasta VOZ_MIN_SEGUNDOS aunque hagas pausas. La confirmación
+        # ("enviar"): termina en cuanto la dices.
         espera = VOZ_ESPERA_CONFIRMACION if confirmacion else voz.VOZ_ESPERA_SIN_VOZ
         self.grabacion = voz.Grabacion(al_terminar=lambda audio, motivo: self.raiz.after(
-            0, self._voz_grabada, audio, motivo), espera_sin_voz=espera)
+            0, self._voz_grabada, audio, motivo), espera_sin_voz=espera,
+            min_segundos=0 if confirmacion else voz.VOZ_MIN_SEGUNDOS,
+            silencio_fin=voz.VOZ_SILENCIO_FIN_RESPUESTA if confirmacion else voz.VOZ_SILENCIO_FIN)
         try:
             self.grabacion.iniciar()
         except Exception as e:
@@ -414,7 +434,7 @@ class Interfaz:
         self.boton_micro.poner_escuchando(True)
         self.estado.configure(text="● ¿enviar?" if confirmacion else "● escuchando…", fg=COLORES["error"])
         if not confirmacion:
-            self.escribir("🎤 Te escucho… (habla; termino cuando te calles o al pulsar otra vez el micrófono)",
+            self.escribir("🎤 Te escucho… (habla con calma; para terminar antes, pulsa otra vez el micrófono)",
                           "aviso")
 
     def _voz_grabada(self, audio, motivo: str) -> None:
@@ -466,7 +486,7 @@ class Interfaz:
         if que == "enviar":
             if pendiente:
                 self.dictado = None
-                self.enviar()
+                self.enviar(por_voz=True)
             else:
                 self.escribir("🎤 No hay ninguna orden en el cuadro que enviar: dímela primero.", "aviso")
             return
@@ -487,7 +507,7 @@ class Interfaz:
         self.entrada.delete(0, "end")
         self.entrada.insert(0, texto)
         if VOZ_ENVIAR_AL_TERMINAR:
-            self.enviar()
+            self.enviar(por_voz=True)
             return
         self.dictado = texto
         self.entrada.focus_set()
@@ -590,6 +610,217 @@ class Interfaz:
         else:
             self.boton_panico.configure(text="■ PARAR", bg=COLORES["error"])
         self._estado()
+
+
+# Ventanas de seguridad: estilo propio, distinto de la libreta, para que se note
+# que piden una decisión. Sobrio, letra sin serifa y grande, la acción resaltada.
+SEG = {
+    "cabecera": "#1E2B38", "subtitulo": "#AFC0CF", "fondo": "#F7F9FB", "texto": "#1E2B38",
+    "suave": "#5F6B76", "ambar": "#E8A317", "caja": "#FFF4D9", "borde": "#C9D2DA", "pie": "#EAEFF3",
+    "borde_boton": "#8A97A3",
+    "si": "#2E7D32", "si_activo": "#25692A", "no": "#FFFFFF", "no_activo": "#E9EDF1",
+    "ok": "#2E7D32", "error": "#B3261E", "aviso": "#5F6B76",
+}
+LETRA_SEG = "Segoe UI"
+
+
+def formatear_pregunta(texto: str) -> str:
+    """Las opciones "1) A; 2) B" de una pregunta, una por línea (se leen mejor)."""
+    texto = re.sub(r";\s*(?=\d+\)\s)", "\n", texto)
+    texto = re.sub(r":\s*(?=1\)\s)", ":\n", texto)
+    if "\n" in texto:   # la pregunta final ("¿Cuál pulso?"), separada de la última opción
+        texto = re.sub(r"\.\s+(?=¿)", "\n\n", texto)
+    return texto
+
+
+class DialogoSeguridad:
+    """
+    Ventana de seguridad: "¿continúo con esta acción?" (tipo "si_no") o "me
+    falta un dato / ¿cuál de estas?" (tipo "texto"). Se contesta con los
+    botones o el teclado (Enter = sí/aceptar, Esc = no/cancelar).
+
+    Si la orden se dio por voz (`codigo` no vacío), también se puede contestar
+    de palabra, pero solo después de decir el código ("código Romeo, sí"; o el
+    código y luego "sí", "no", "1", "2"...). Sin el código no hace caso a la voz.
+    """
+
+    def __init__(self, app: "Interfaz", tipo: str, contenido: str, codigo: str = ""):
+        self.app, self.tipo, self.codigo = app, tipo, codigo     # tipo: "si_no" o "texto"
+        self.resultado = False if tipo == "si_no" else None
+        self.por_voz = self.autorizado = self.cerrado = False
+        self.grabacion: voz.Grabacion | None = None
+        self.inicio = time.monotonic()
+
+        v = self.ventana = tk.Toplevel(app.raiz, background=SEG["borde"])
+        v.title("Confirmar acción" if tipo == "si_no" else "El agente necesita un dato")
+        v.transient(app.raiz)
+        v.resizable(False, False)
+        v.attributes("-topmost", True)
+        marco = tk.Frame(v, bg=SEG["fondo"])
+        marco.pack(padx=1, pady=1, fill="both", expand=True)
+
+        # Cabecera: escudo y qué se pide.
+        cabecera = tk.Frame(marco, bg=SEG["cabecera"], padx=17, pady=12)
+        cabecera.pack(fill="x")
+        tk.Label(cabecera, text="🛡", font=(LETRA_SEG, 19), fg=SEG["ambar"], bg=SEG["cabecera"]
+                 ).pack(side="left", padx=(0, 10))
+        titulos = tk.Frame(cabecera, bg=SEG["cabecera"])
+        titulos.pack(side="left", fill="x")
+        titulo, subtitulo = (("Confirmación de seguridad", "Revisa la acción antes de continuar")
+                             if tipo == "si_no" else ("El agente necesita un dato", "Contesta para que pueda seguir"))
+        tk.Label(titulos, text=titulo, font=(LETRA_SEG, 12, "bold"), fg="#FFFFFF", bg=SEG["cabecera"]
+                 ).pack(anchor="w")
+        tk.Label(titulos, text=subtitulo, font=(LETRA_SEG, 9), fg=SEG["subtitulo"], bg=SEG["cabecera"]
+                 ).pack(anchor="w")
+
+        # Cuerpo: la acción resaltada (o la pregunta) y, si hace falta, el campo.
+        cuerpo = tk.Frame(marco, bg=SEG["fondo"], padx=19, pady=15)
+        cuerpo.pack(fill="both", expand=True)
+        self.campo = None
+        if tipo == "si_no":
+            cuando, pasos = accion_legible(contenido)
+            encabezado = f"El agente va a programar, para {cuando}:" if cuando else (
+                "El agente va a hacer:" if len(pasos) == 1 else f"El agente va a hacer estos {len(pasos)} pasos:")
+            tk.Label(cuerpo, text=encabezado, font=(LETRA_SEG, 9), fg=SEG["suave"], bg=SEG["fondo"]
+                     ).pack(anchor="w")
+            caja = tk.Frame(cuerpo, bg=SEG["ambar"])
+            caja.pack(fill="x", pady=(5, 4))
+            lineas = pasos[0] if len(pasos) == 1 else "\n".join(f"{i}.  {p}" for i, p in enumerate(pasos, 1))
+            tk.Label(caja, text=lineas, font=(LETRA_SEG, 10, "bold"), fg=SEG["texto"], bg=SEG["caja"],
+                     justify="left", anchor="w", wraplength=410, padx=12, pady=10
+                     ).pack(fill="x", padx=(5, 0))
+            if pasos != [contenido]:
+                tk.Label(cuerpo, text=f"Detalle: {contenido}", font=(LETRA_SEG, 8), fg=SEG["suave"],
+                         bg=SEG["fondo"], justify="left", wraplength=420).pack(anchor="w", pady=(0, 9))
+            else:
+                tk.Frame(cuerpo, height=10, bg=SEG["fondo"]).pack()
+            tk.Label(cuerpo, text="¿Quieres continuar?", font=(LETRA_SEG, 11), fg=SEG["texto"], bg=SEG["fondo"]
+                     ).pack(anchor="w")
+        else:
+            tk.Label(cuerpo, text=formatear_pregunta(contenido), font=(LETRA_SEG, 11), fg=SEG["texto"],
+                     bg=SEG["fondo"], justify="left", wraplength=420).pack(anchor="w")
+            self.campo = tk.Entry(cuerpo, font=(LETRA_SEG, 11), fg=SEG["texto"], bg="#FFFFFF", relief="flat",
+                                  highlightthickness=2, highlightbackground=SEG["borde"],
+                                  highlightcolor=SEG["ambar"], width=37)
+            self.campo.pack(fill="x", pady=(10, 0), ipady=4)
+
+        # Botones: el de seguir, en verde y a la derecha.
+        botones = tk.Frame(marco, bg=SEG["fondo"], padx=19)
+        botones.pack(fill="x", pady=(0, 14))
+        si, no = (("Sí, continuar", "No, cancelar") if tipo == "si_no" else ("Aceptar", "Cancelar"))
+        tk.Button(botones, text=si, command=self._aceptar, font=(LETRA_SEG, 10, "bold"), fg="#FFFFFF",
+                  bg=SEG["si"], activebackground=SEG["si_activo"], activeforeground="#FFFFFF", relief="flat",
+                  padx=15, pady=6, cursor="hand2", borderwidth=0).pack(side="right")
+        borde_no = tk.Frame(botones, bg=SEG["borde_boton"])          # borde de 1 px que se vea
+        borde_no.pack(side="right", padx=(0, 9))
+        tk.Button(borde_no, text=no, command=self._rechazar, font=(LETRA_SEG, 10), fg=SEG["texto"],
+                  bg=SEG["no"], activebackground=SEG["no_activo"], relief="flat", padx=15, pady=5,
+                  cursor="hand2", borderwidth=0).pack(padx=1, pady=1)
+
+        # Pie: cómo se puede contestar.
+        pie = tk.Frame(marco, bg=SEG["pie"], padx=19, pady=8)
+        pie.pack(fill="x")
+        teclas = "Enter = sí · Esc = no" if tipo == "si_no" else "Enter = aceptar · Esc = cancelar"
+        if codigo:
+            texto_pie = (f"🎤 También de palabra: di «{codigo}» y tu respuesta (p. ej. «{codigo}, sí»).\n"
+                         f"Sin el código no hago caso a la voz.   ⌨ {teclas}")
+        else:
+            texto_pie = f"⌨ {teclas}"
+        self.aviso = tk.Label(pie, text=texto_pie, font=(LETRA_SEG, 8), fg=SEG["suave"], bg=SEG["pie"],
+                              justify="left", wraplength=420)
+        self.aviso.pack(anchor="w")
+
+        v.bind("<Return>", lambda _: self._aceptar())
+        v.bind("<Escape>", lambda _: self._rechazar())
+        v.protocol("WM_DELETE_WINDOW", self._rechazar)
+
+    def _aceptar(self) -> None:
+        self._cerrar(True if self.tipo == "si_no" else self.campo.get())
+
+    def _rechazar(self) -> None:
+        self._cerrar(False if self.tipo == "si_no" else None)
+
+    def abrir(self) -> tuple:
+        """Muestra la ventana (centrada sobre la del agente) y espera: (respuesta, si fue de palabra)."""
+        v, raiz = self.ventana, self.app.raiz
+        v.update_idletasks()
+        ancho, alto = v.winfo_reqwidth(), v.winfo_reqheight()
+        x = raiz.winfo_rootx() + (raiz.winfo_width() - ancho) // 2
+        y = raiz.winfo_rooty() + max(40, (raiz.winfo_height() - alto) // 3)
+        x = max(0, min(x, v.winfo_screenwidth() - ancho))
+        y = max(0, min(y, v.winfo_screenheight() - alto - 40))
+        v.geometry(f"+{x}+{y}")
+        v.grab_set()
+        (self.campo or v).focus_force()
+        if self.codigo:
+            self._escuchar()
+        raiz.wait_window(v)
+        return self.resultado, self.por_voz
+
+    def _decir(self, texto: str, color: str = "aviso") -> None:
+        if not self.cerrado:
+            self.aviso.configure(text=texto, fg=SEG[color])
+
+    def _cerrar(self, valor, por_voz: bool = False) -> None:
+        if self.cerrado:
+            return
+        self.cerrado, self.resultado, self.por_voz = True, valor, por_voz
+        if self.grabacion is not None:
+            self.grabacion.parar("descartar")
+        self.ventana.grab_release()
+        self.ventana.destroy()
+
+    def _escuchar(self) -> None:
+        if self.cerrado:
+            return
+        if control.en_pausa() or time.monotonic() - self.inicio > VOZ_ESCUCHA_DIALOGO:
+            self._decir("🎤 Ya no escucho: contesta con los botones o el teclado.")
+            return
+        self.grabacion = voz.Grabacion(al_terminar=lambda audio, motivo: self.app.raiz.after(
+            0, self._grabado, audio, motivo), min_segundos=0, silencio_fin=voz.VOZ_SILENCIO_FIN_RESPUESTA)
+        try:
+            self.grabacion.iniciar()
+        except Exception as e:
+            self.grabacion = None
+            self._decir(f"🎤 No puedo usar el micrófono ({e}): contesta con los botones o el teclado.", "error")
+
+    def _grabado(self, audio, motivo: str) -> None:
+        self.grabacion = None
+        if self.cerrado:
+            return
+        if audio is None:
+            if motivo == "panico":
+                self._decir("■ Botón de pánico: ya no escucho.", "error")
+            else:
+                self._escuchar()          # no has dicho nada: sigue escuchando
+            return
+        self._decir("🎤 Entendiendo…")
+
+        def transcribir():
+            try:
+                texto = self.app.transcriptor.transcribir(audio)
+            except Exception:
+                logging.getLogger("personalagent").exception("Error transcribiendo la voz:")
+                texto = ""
+            self.app.raiz.after(0, self._entendido, texto)
+        threading.Thread(target=transcribir, daemon=True).start()
+
+    def _entendido(self, texto: str) -> None:
+        if self.cerrado:
+            return
+        if texto:
+            estado, valor, self.autorizado = voz.responder_de_palabra(texto, self.codigo, self.autorizado, self.tipo)
+            if estado == "respuesta":
+                self._cerrar(valor, por_voz=True)
+                return
+            self._decir({
+                "sin_codigo": f"🎤 He oído «{texto}», pero sin el código no acepto respuestas de palabra "
+                              f"(di «{self.codigo}» o usa los botones).",
+                "codigo": "🎤 Código correcto. Ahora di tu respuesta"
+                          + (" (sí o no)." if self.tipo == "si_no" else " (por ejemplo, «1» o «la dos»)."),
+                "no_entiendo": f"🎤 No te entiendo («{texto}»): di «sí» o «no».",
+            }[estado], "ok" if estado == "codigo" else "aviso")
+        self._escuchar()
 
 
 class Aviso:

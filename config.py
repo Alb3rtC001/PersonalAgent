@@ -156,8 +156,13 @@ RUTA_MODELO_VOZ = RUTA_MODELOS / "faster-whisper-small"
 VOZ_IDIOMA = "es"
 VOZ_HILOS_CPU = 4
 VOZ_MAX_SEGUNDOS = 30          # tope de una grabación
-VOZ_SILENCIO_FIN = 1.5         # segundos callado (después de hablar) que terminan la grabación
+VOZ_SILENCIO_FIN = 3           # al dictar: segundos callado (después de hablar) que terminan la orden
+VOZ_SILENCIO_FIN_RESPUESTA = 1 # al decir "enviar" o contestar una ventana: respuesta corta, se corta antes
 VOZ_ESPERA_SIN_VOZ = 8         # si en estos segundos no se oye nada, se deja de escuchar
+# Al dictar una orden, el silencio no la corta antes de estos segundos (para
+# pensar o hacer pausas). 0 = sin mínimo: las pausas de menos de VOZ_SILENCIO_FIN
+# ya no cortan. Para terminar antes, pulsa otra vez el micrófono.
+VOZ_MIN_SEGUNDOS = 0
 # True: la orden reconocida se envía sola. False: se queda en el cuadro de texto
 # para que la revises y la confirmes (diciendo "enviar" o pulsando Enter).
 VOZ_ENVIAR_AL_TERMINAR = False
@@ -166,6 +171,13 @@ VOZ_ENVIAR_AL_TERMINAR = False
 # sin tocar el teclado. Si no dices nada en ese tiempo, deja de escuchar.
 VOZ_ESCUCHAR_CONFIRMACION = True
 VOZ_ESPERA_CONFIRMACION = 6
+# Ventanas de seguridad ("¿Continuar?", "¿cuál de estas ventanas?") de una orden
+# dada por voz: se pueden contestar de palabra ("sí", "no", "1", "2"...) solo si
+# antes dices este código, para que nada que se oiga de fondo las acepte. Sin
+# el código, con el teclado o el ratón, como siempre. Para no dejarlo en el
+# repositorio, pon el tuyo en data/codigo_voz.txt (tiene prioridad). "" lo desactiva.
+VOZ_CODIGO_SEGURIDAD = "código romeo"
+VOZ_ESCUCHA_DIALOGO = 60       # segundos que se escucha una de esas ventanas como mucho
 
 # Datos generados por el agente (no se suben a git).
 RUTA_DATOS = Path(__file__).parent / "data"

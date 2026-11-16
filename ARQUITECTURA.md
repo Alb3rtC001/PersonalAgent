@@ -339,6 +339,13 @@ Cada fase termina con algo que funciona de punta a punta.
     micrófono sigue escuchando unos segundos; "enviar"/"enter" la manda,
     "cancelar" la borra y otra frase la sustituye. Un "sí" suelto no manda
     nada (`VOZ_ESCUCHAR_CONFIRMACION`, `VOZ_ENVIAR_AL_TERMINAR`).
+  - ✅ Dictado con calma: corta tras 3 s de silencio (`VOZ_SILENCIO_FIN`); "enviar"
+    y las respuestas a ventanas, tras 1 s (`VOZ_SILENCIO_FIN_RESPUESTA`).
+  - ✅ Nombres propios y en inglés (`core/vocabulario.py`): pista a Whisper
+    con las apps, botones, juegos de Steam y `data/vocabulario_voz.txt`, y
+    corrección por cómo suena ("Estim" → Steam).
+  - ✅ Ventanas de seguridad de una orden por voz contestadas de palabra,
+    solo tras el código (`VOZ_CODIGO_SEGURIDAD` o `data/codigo_voz.txt`).
   - ⏳ Opcional, más adelante: texto a voz (Piper) y palabra de activación
     (openWakeWord).
 - **Fase 7 — Aprendizaje continuo.** Episodios → dataset → reentreno del

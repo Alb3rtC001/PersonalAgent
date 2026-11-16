@@ -44,6 +44,16 @@ ESPERA_CAMBIO = 4.0          # tiempo máximo para que se note el efecto del cli
 PRIORIDAD_TIPO = {"ButtonControl": 0, "HyperlinkControl": 0, "TabItemControl": 0, "MenuItemControl": 0,
                   "ListItemControl": 1, "TreeItemControl": 1, "SplitButtonControl": 1,
                   "CheckBoxControl": 2, "RadioButtonControl": 2, "DataItemControl": 2, "TextControl": 3}
+# Secciones, pestañas, enlaces y elementos de lista: si el clic no cambia nada es
+# que ya estabas ahí ("Biblioteca" con la Biblioteca abierta), no un fallo. Un
+# botón (JUGAR) que no hace nada sí es un fallo.
+TIPOS_NAVEGACION = {"TextControl", "TabItemControl", "HyperlinkControl", "ListItemControl",
+                    "TreeItemControl", "MenuItemControl", "DataItemControl"}
+
+
+def ya_estabas_ahi(tipo: str, seleccionado: bool, cambio: bool) -> bool:
+    """El clic no cambió nada porque lo pulsado ya estaba abierto o seleccionado."""
+    return not cambio and (seleccionado or tipo in TIPOS_NAVEGACION)
 
 
 def puntuar(elemento: str, nombre: str) -> float:
@@ -155,6 +165,14 @@ def _sin_ventanas_propias_encima(x: int, y: int):
             _mostrar(hwnd)
 
 
+def _seleccionado(control_uia) -> bool:
+    """¿La pestaña u opción ya está seleccionada? (si la app lo dice; muchas no lo dicen)."""
+    try:
+        return bool(control_uia.GetSelectionItemPattern().IsSelected)
+    except Exception:
+        return False
+
+
 def _clic(x: int, y: int) -> None:
     import pyautogui
     antes = pyautogui.position()
@@ -220,6 +238,7 @@ class HacerClic(_EnAplicacion):
                     return Resultado(False, f"La ventana {_describir(encima)} tapa '{nombre}' de "
                                             f"'{ventana['titulo']}': no hago clic a ciegas.")
                 control.comprobar()
+                seleccionado = _seleccionado(elegido)
                 antes = uia.huella(ventana["hwnd"])
                 log.info("Clic en '%s' (%s) de '%s'.", nombre, tipo.replace("Control", ""), ventana["titulo"])
                 _clic(x, y)
@@ -230,9 +249,12 @@ class HacerClic(_EnAplicacion):
             while not cambio and time.monotonic() < limite:
                 time.sleep(PAUSA_TRAS_CLIC)
                 cambio = uia.huella(ventana["hwnd"]) != antes
-        return Resultado(True, f"Pulsado '{nombre}' en '{ventana['titulo']}'.", datos={
+        ya_ahi = ya_estabas_ahi(tipo, seleccionado, cambio)
+        mensaje = (f"'{nombre}' ya estaba abierto en '{ventana['titulo']}' (el clic no cambia nada): sigo."
+                   if ya_ahi else f"Pulsado '{nombre}' en '{ventana['titulo']}'.")
+        return Resultado(True, mensaje, datos={
             "hwnd": ventana["hwnd"], "titulo": ventana["titulo"], "aplicacion": aplicacion,
-            "elemento": nombre, "tipo": tipo, "cambio": cambio,
+            "elemento": nombre, "tipo": tipo, "cambio": cambio, "ya_estaba": ya_ahi,
         })
 
     def _preguntar_cual(self, elemento: str, dudas: list) -> tuple[object | None, str | None]:
@@ -250,7 +272,7 @@ class HacerClic(_EnAplicacion):
     def verificar(self, resultado: Resultado) -> bool:
         if not resultado.ok:
             return False
-        if not resultado.datos.get("cambio", True):
+        if not resultado.datos.get("cambio", True) and not resultado.datos.get("ya_estaba"):
             resultado.datos["motivo_verificacion"] = (
                 f"Hice clic en '{resultado.datos['elemento']}' pero no ha cambiado nada en la ventana: "
                 "parece que el clic no ha llegado (o el botón no hace nada ahora mismo).")

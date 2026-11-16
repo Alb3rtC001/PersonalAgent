@@ -72,7 +72,10 @@ python .\dispatcher.py --sin-llm  # solo el clasificador: no usa la GPU
   entrenadas y rechaza las nuevas.
 - Si una orden la interpreta el LLM y la acción tiene consecuencias
   (cerrar una app), **te pedirá confirmación**. Las que reconoce el
-  clasificador no preguntan.
+  clasificador no preguntan. En la interfaz, la confirmación es una ventana
+  de seguridad (cabecera oscura con escudo). Enseña los pasos en lenguaje
+  normal ("Pulsar «JUGAR» en Steam") y el detalle técnico debajo. Se
+  contesta con "Sí, continuar" / "No, cancelar", o con Enter / Esc.
 - `Ctrl+C` cancela la orden en curso.
 
 ---
@@ -292,7 +295,11 @@ interpretado el LLM, te pide confirmación antes.
   cuál. Gana el que contiene todo lo que dices: "slay the spire 2" no elige
   "Slay the Spire" (el primer juego).
 - Después comprueba que la ventana ha cambiado. Si no ha cambiado nada, no
-  dice "Pulsado": te dice que el clic no ha llegado.
+  dice "Pulsado": te dice que el clic no ha llegado. Excepción: si lo
+  pulsado es una sección, pestaña, enlace u opción de una lista ("Biblioteca"
+  con la Biblioteca ya abierta), que no cambie nada significa que ya estabas
+  ahí, y la orden sigue. Un botón (JUGAR) que no hace nada sigue siendo un
+  fallo.
 
 Ejemplo completo en Steam: `quiero que abras steam, busques slay the spire 2
 e inicies el juego` → abre Steam, Biblioteca, escribe en el buscador y pulsa
@@ -338,8 +345,10 @@ iniciada**. Otras apps con salida propia se añaden en `CIERRE_LIMPIO`
 En la interfaz, el micrófono junto a "enviar":
 
 1. Púlsalo (se pone rojo: "● escuchando…") y di la orden.
-2. Termina solo cuando te callas 1,5 s (`VOZ_SILENCIO_FIN`), o al pulsarlo
-   otra vez. Si no oye nada en 8 s, lo deja (¿micrófono silenciado?).
+2. Termina cuando llevas **3 s callado** después de hablar
+   (`VOZ_SILENCIO_FIN`): las pausas más cortas para pensar no cortan. Para
+   terminar antes, púlsalo otra vez. Si no oye
+   nada en 8 s, lo deja (¿micrófono silenciado?).
 3. Lo que ha entendido aparece en el cuadro de texto y el micrófono **sigue
    escuchando 6 s** (`VOZ_ESPERA_CONFIRMACION`, estado "● ¿enviar?"), sin
    pulsar nada:
@@ -352,6 +361,27 @@ En la interfaz, el micrófono junto a "enviar":
 
    Para no tener esa espera, `VOZ_ESCUCHAR_CONFIRMACION = False`; para que se
    envíe sin confirmar, `VOZ_ENVIAR_AL_TERMINAR = True` (en `config.py`).
+
+**Nombres propios y en inglés.** Whisper recibe como pista los nombres que el
+agente conoce (apps de `core/atajos_apps.json` con sus botones y campos, y
+tus juegos de Steam instalados). Si aun así escribe algo "a la española", se
+corrige por cómo suena: "Estim" → Steam, "slay de spire" → Slay the Spire,
+"Valdur's GAT3" → Baldur's Gate 3. Para añadir los tuyos (contactos, canales
+de Discord, series...), escríbelos uno por línea en `data/vocabulario_voz.txt`.
+Los tuyos van primero en la pista. Las líneas que empiezan por `#` no cuentan.
+
+**Ventanas de seguridad de palabra.** Si la orden la diste por voz, las
+ventanas "Confirmar acción" y "Falta un dato" (por ejemplo, "¿qué ventana
+de Steam?") también se pueden contestar de palabra, pero **solo después de
+decir el código**, para que nada que se oiga de fondo las acepte:
+- "Código Romeo, sí" (o "no"), o "código Romeo" y luego "sí".
+- Para elegir entre opciones: "código Romeo, la dos" (o "2", "la segunda").
+
+Sin el código no hace caso a la voz y se contesta con el teclado o el ratón,
+como siempre. Escucha como mucho 60 s (`VOZ_ESCUCHA_DIALOGO`). El código está
+en `VOZ_CODIGO_SEGURIDAD` (`config.py`). Como ese archivo está en GitHub, pon
+el tuyo en `data/codigo_voz.txt` (una línea), que tiene prioridad y no se sube.
+Con `""` se desactiva.
 
 Todo es local: Whisper "small" (`models/faster-whisper-small`) en la CPU,
 sin VRAM y sin internet; el audio no se guarda en ningún sitio. Usa el

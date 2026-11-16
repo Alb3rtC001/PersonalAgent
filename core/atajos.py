@@ -75,6 +75,50 @@ def describir_atajos(texto: str, ultima_aplicacion: str | None, atajos: dict[str
     return "\n".join(lineas)
 
 
+TECLAS_ENTER = {"enter", "intro", "return"}
+
+
+def _teclas(teclas: str) -> str:
+    t = normalizar(teclas).replace("+", " ").replace("ctrl", "control")
+    return " ".join(t.split())
+
+
+def atajo_pide_enter(app: str | None, teclas: str, atajos: dict[str, dict]) -> bool:
+    """¿El atajo es de los que van "después escribir ... y pulsar enter" (barra de direcciones, selector)?"""
+    entrada = app_conocida(app, atajos)
+    if not entrada:
+        return False
+    return any(_teclas(t) == _teclas(teclas) and "pulsar enter" in normalizar(que)
+               for que, t in atajos[entrada].get("atajos", {}).items())
+
+
+def completar_enter(pasos: list[tuple[str, dict]], atajos: dict[str, dict]) -> list[tuple[str, dict]]:
+    """
+    Añade el Enter que falta tras escribir en la barra de direcciones o en un
+    selector: "busca en google música" = Ctrl+L, escribir y ENTER. El LLM a
+    veces se lo deja y la búsqueda se queda escrita sin hacer.
+    """
+    resultado = list(pasos)
+    i, app = 0, None
+    while i < len(resultado) - 1:
+        skill, params = resultado[i]
+        app = params.get("aplicacion") or app
+        siguiente, params_sig = resultado[i + 1]
+        if (skill == "pulsar_teclas" and siguiente == "escribir_texto"
+                and atajo_pide_enter(app, params.get("teclas", ""), atajos)):
+            despues = resultado[i + 2] if i + 2 < len(resultado) else None
+            ya_hay_enter = (despues is not None and despues[0] == "pulsar_teclas"
+                            and _teclas(despues[1].get("teclas", "")) in TECLAS_ENTER)
+            if not ya_hay_enter:
+                enter = {"teclas": "enter"}
+                if params_sig.get("aplicacion") or app:
+                    enter["aplicacion"] = params_sig.get("aplicacion") or app
+                resultado.insert(i + 2, ("pulsar_teclas", enter))
+            i += 2
+        i += 1
+    return resultado
+
+
 def valores_conocidos(app: str, atajos: dict[str, dict]) -> set[str]:
     """Teclas, botones y campos de una app: el LLM puede usarlos aunque no estén en la frase."""
     info = atajos.get(app, {})

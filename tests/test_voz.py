@@ -136,3 +136,89 @@ def test_grabacion_descartada_no_da_audio():
     g._motivo = "descartar"
     g._fin()
     assert resultados == [(None, "descartar")]
+
+
+def test_al_dictar_las_pausas_no_cortan_antes_del_minimo():
+    d = voz.DetectorFin(F, silencio_fin=1.5, espera_sin_voz=8, max_segundos=30, min_segundos=10)
+    # Hablas 2 s y te callas: no termina hasta los 10 s (y entonces sí).
+    parado_en = alimentar(d, silencio(0.5) + voz_alta(2) + silencio(12))
+    assert d.motivo == "silencio" and parado_en == 100
+
+
+def test_sin_minimo_termina_al_callarse():
+    d = voz.DetectorFin(F, silencio_fin=1.5, espera_sin_voz=8, max_segundos=30, min_segundos=0)
+    assert alimentar(d, silencio(0.5) + voz_alta(1) + silencio(3)) == 30
+
+
+# --- Ventanas de seguridad de palabra (con código) -----------------------------------
+
+CODIGO = "código romeo"
+
+
+@pytest.mark.parametrize("dicho, resto", [
+    ("Código Romeo, sí.", "sí"),
+    ("código, romeo", ""),
+    ("Codigo Romero. La dos.", "La dos"),
+    ("Vale, código Romeo, no", "no"),
+    ("Sí.", None),
+    ("Romeo", None),
+    ("", None),
+])
+def test_quitar_codigo(dicho, resto):
+    assert voz.quitar_codigo(dicho, CODIGO) == resto
+
+
+@pytest.mark.parametrize("dicho, valor", [
+    ("Sí", True), ("Vale, adelante.", True), ("Sí, por favor", True), ("Confirmo", True),
+    ("No", False), ("No lo hagas", False), ("Cancela", False),
+    ("Quizás", None), ("", None),
+])
+def test_respuesta_si_no(dicho, valor):
+    assert voz.respuesta_si_no(dicho) == valor
+
+
+def test_en_cifras():
+    assert voz.en_cifras("La dos.") == "La 2"
+    assert voz.en_cifras("Uno") == "1"
+    assert voz.en_cifras("la de YouTube") == "la de YouTube"
+
+
+def test_responder_de_palabra_exige_el_codigo():
+    assert voz.responder_de_palabra("Sí", CODIGO, False, "si_no") == ("sin_codigo", None, False)
+    assert voz.responder_de_palabra("Código Romeo, sí", CODIGO, False, "si_no") == ("respuesta", True, True)
+    assert voz.responder_de_palabra("Código Romeo, no", CODIGO, False, "si_no") == ("respuesta", False, True)
+    assert voz.responder_de_palabra("Código Romeo, la tres", CODIGO, False, "texto") == ("respuesta", "la 3", True)
+
+
+def test_responder_de_palabra_en_dos_veces():
+    estado, _, autorizado = voz.responder_de_palabra("Código Romeo.", CODIGO, False, "si_no")
+    assert (estado, autorizado) == ("codigo", True)
+    assert voz.responder_de_palabra("Quizás", CODIGO, autorizado, "si_no") == ("no_entiendo", None, True)
+    assert voz.responder_de_palabra("Sí", CODIGO, autorizado, "si_no") == ("respuesta", True, True)
+
+
+def test_sin_codigo_configurado_no_se_acepta_nada():
+    assert voz.responder_de_palabra("Sí", "", False, "si_no")[0] == "sin_codigo"
+
+
+def test_codigo_seguridad_del_archivo(tmp_path):
+    ruta = tmp_path / "codigo_voz.txt"
+    assert voz.codigo_seguridad(ruta, "código romeo") == "código romeo"
+    ruta.write_text("# mi código\nclave tango\n", encoding="utf-8")
+    assert voz.codigo_seguridad(ruta, "código romeo") == "clave tango"
+
+
+def test_dictado_con_los_valores_de_config_corta_a_los_3_s_de_silencio():
+    from config import VOZ_MIN_SEGUNDOS, VOZ_SILENCIO_FIN
+    assert (VOZ_MIN_SEGUNDOS, VOZ_SILENCIO_FIN) == (0, 3)
+    d = voz.DetectorFin(F)                         # los valores de config.py
+    # Pausa de 2 s para pensar: sigue escuchando; luego 3 s callado: corta.
+    parado_en = alimentar(d, silencio(0.5) + voz_alta(1) + silencio(2) + voz_alta(1) + silencio(5))
+    assert d.motivo == "silencio" and parado_en == 5 + 10 + 20 + 10 + 30
+
+
+def test_la_confirmacion_corta_antes():
+    resultados = []
+    g = voz.Grabacion(al_terminar=lambda a, m: resultados.append(m), min_segundos=0,
+                      silencio_fin=voz.VOZ_SILENCIO_FIN_RESPUESTA)
+    assert g._silencio_fin == 1 < voz.VOZ_SILENCIO_FIN

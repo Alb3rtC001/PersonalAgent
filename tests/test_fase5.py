@@ -678,3 +678,23 @@ def test_si_cabe_van_todos_los_ejemplos():
                                memoria=False)
     mensajes = interp._mensajes_que_caben("abre spotify", "")
     assert sum(1 for m in mensajes if m["role"] == "assistant") == len(EJEMPLOS)
+
+
+def test_hacer_clic_en_la_seccion_en_la_que_ya_estas_sigue(clic_falso):
+    # "Biblioteca" con la Biblioteca ya abierta: el clic no cambia nada, y está bien.
+    skill, estado = clic_falso
+    estado["controles"], estado["efecto"] = [Pulsable("BIBLIOTECA", tipo="TextControl")], False
+    r = skill.ejecutar("Biblioteca", "steam")
+    assert r.ok and r.datos["ya_estaba"] and skill.verificar(r)
+    assert "ya estaba abierto" in r.mensaje
+
+
+@pytest.mark.parametrize("tipo, seleccionado, cambio, ya", [
+    ("TextControl", False, False, True),
+    ("TabItemControl", False, False, True),
+    ("ButtonControl", False, False, False),     # un botón que no hace nada: fallo
+    ("ButtonControl", True, False, True),       # salvo que la app diga que ya está seleccionado
+    ("TextControl", False, True, False),        # si cambió algo, es un clic normal
+])
+def test_ya_estabas_ahi(tipo, seleccionado, cambio, ya):
+    assert clic.ya_estabas_ahi(tipo, seleccionado, cambio) is ya

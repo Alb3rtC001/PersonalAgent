@@ -50,7 +50,8 @@ from config import (
     RUTA_LLAMA_SERVER,
     RUTA_MODELO_LLM,
 )
-from core.atajos import app_conocida, apps_mencionadas, cargar_atajos, describir_atajos, valores_conocidos
+from core.atajos import (app_conocida, apps_mencionadas, cargar_atajos, completar_enter, describir_atajos,
+                         valores_conocidos)
 from core.estado import normalizar
 from core.gguf import numero_de_capas
 from core.memoria import MemoriaEjemplos, _trigramas
@@ -786,8 +787,8 @@ class InterpreteLLM:
                 motivo = ("Hay una parte de la orden que no sé hacer todavía."
                           if r.motivo == NO_SE_HACER else f"Paso {i}: {r.motivo}")
                 return ResultadoLLM(None, motivo=motivo, crudo=crudo)
-        return ResultadoLLM(resultados[0].skill, resultados[0].params, crudo=crudo,
-                            pasos=[(r.skill, r.params) for r in resultados])
+        pasos = completar_enter([(r.skill, r.params) for r in resultados], self.atajos)
+        return ResultadoLLM(resultados[0].skill, resultados[0].params, crudo=crudo, pasos=pasos)
 
     def _validar_paso(self, datos: dict, texto: str, conocidos) -> ResultadoLLM:
         skill = datos.get("skill")
