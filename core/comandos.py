@@ -5,6 +5,8 @@ Comandos del propio agente (no son órdenes): los usan la consola y la interfaz.
     seguro / seguro on / off    modo seguro: confirmar todo lo que no sea de lectura
     actividad                   las últimas acciones del registro de actividad
     reanudar                    quitar la pausa del botón de pánico
+    aprende                     aprender de tu uso: reentrenar y proponer órdenes compuestas
+    aprende crea <n> <nombre>   aceptar la propuesta n como orden compuesta
     ayuda                       esta lista
 """
 
@@ -14,7 +16,7 @@ from core import control
 from core.seguridad import activar_modo_seguro, modo_seguro, registrar_actividad, ultima_actividad
 
 AYUDA = ("Comandos: 'grabar <nombre>' (en la interfaz), 'llm' / 'llm on' / 'llm off', 'seguro' / 'seguro on' / 'seguro off', "
-         "'actividad', 'reanudar', 'ayuda', 'salir'.")
+         "'actividad', 'aprende', 'reanudar', 'ayuda', 'salir'.")
 
 
 def describir_llm(estado: dict) -> str:
@@ -53,6 +55,8 @@ def ejecutar_comando(agente, texto: str, quien: str = "consola") -> str | None:
     if partes == ["actividad"]:
         lineas = ultima_actividad(15)
         return "\n".join(lineas) if lineas else "El registro de actividad está vacío."
+    if partes[0] == "aprende":
+        return aprender(agente, partes[1:], quien)
     if partes == ["reanudar"]:
         if not control.en_pausa():
             return "El agente no está en pausa."
@@ -60,6 +64,45 @@ def ejecutar_comando(agente, texto: str, quien: str = "consola") -> str | None:
         registrar_actividad(quien, "Agente reanudado.")
         return "▶ Agente reanudado."
     return None
+
+
+def aprender(agente, argumentos: list[str], quien: str = "consola") -> str:
+    """Fase 7: reentrenar con lo aprendido y proponer (o crear) órdenes compuestas."""
+    from aprendizaje.propuestas import proponer
+    from core.memoria import cargar_episodios
+    from core.skills.compuesta import SkillCompuesta, crear_compuesta, pasos_hechos
+    propuestas = proponer(cargar_episodios(agente.ruta_episodios), pasos_hechos())
+    if argumentos[:1] == ["crea"]:
+        if len(argumentos) < 3 or not argumentos[1].isdigit():
+            return "Uso: aprende crea <número de la propuesta> <nombre>"
+        n = int(argumentos[1])
+        if not 1 <= n <= len(propuestas):
+            return f"No hay propuesta {n} (hay {len(propuestas)}): escribe 'aprende' para verlas."
+        import json
+        from core.skills.compuesta import nombre_valido
+        if nombre_valido(" ".join(argumentos[2:])) in agente.registro:
+            return f"Ya existe una skill '{nombre_valido(' '.join(argumentos[2:]))}': elige otro nombre."
+        archivo = crear_compuesta(" ".join(argumentos[2:]), propuestas[n - 1])
+        skill = SkillCompuesta(json.loads(archivo.read_text(encoding="utf-8")), registro=agente.registro)
+        if skill.nombre in agente.registro:
+            return f"Ya existe una skill '{skill.nombre}': elige otro nombre."
+        agente.anadir_skill(skill)
+        registrar_actividad(quien, f"Orden compuesta creada: {skill.nombre}.")
+        return (f"✔ Orden compuesta '{skill.nombre}' creada ({' → '.join(s for s, _ in skill.pasos)}). "
+                "Ya puedes pedírmela.")
+    from aprendizaje.reentrenar import reentrenar
+    informe = reentrenar(ruta_episodios=agente.ruta_episodios)
+    if informe.cambiado and hasattr(getattr(agente, "router", None), "clasificador"):
+        from core.router import ClasificadorBow
+        agente.router.clasificador = ClasificadorBow()   # el nuevo, sin reiniciar
+    registrar_actividad(quien, "Aprendizaje: " + informe.texto().splitlines()[-1])
+    lineas = [informe.texto()]
+    if propuestas:
+        lineas.append("Cosas que repites y podría hacer de una vez (acepta con 'aprende crea <n> <nombre>'):")
+        lineas += [f"  {i}. {p.describir()}" for i, p in enumerate(propuestas, 1)]
+    else:
+        lineas.append("Todavía no repites nada lo bastante como para proponerte una orden compuesta.")
+    return "\n".join(lineas)
 
 
 def _nombre_tecla(tecla) -> str | None:

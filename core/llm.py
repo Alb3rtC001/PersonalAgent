@@ -659,8 +659,13 @@ class ResultadoLLM:
 class InterpreteLLM:
     def __init__(self, registro: dict[str, Skill], servidor: ServidorLLM | None = None,
                  ejemplos: list[dict] | None = None, atajos: dict[str, dict] | None = None,
-                 memoria: MemoriaEjemplos | None | bool = None, n_memoria: int = MEMORIA_EJEMPLOS):
+                 memoria: MemoriaEjemplos | None | bool = None, n_memoria: int = MEMORIA_EJEMPLOS,
+                 controles_apps=None):
         self.registro = registro
+        # controles_apps(texto, ultima, conocida) -> (bloque, nombres): los botones y
+        # campos de una app que no está en atajos_apps.json (core/controles_app.py).
+        # Sin él (tests, evaluación), el prompt no depende de lo que haya en pantalla.
+        self.controles_apps = controles_apps
         self.servidor = servidor or ServidorLLM()
         self.ejemplos = cargar_ejemplos() if ejemplos is None else ejemplos
         self.atajos = cargar_atajos() if atajos is None else atajos
@@ -727,6 +732,17 @@ class InterpreteLLM:
                 if app:
                     conocidos.add(normalizar(app))
                     conocidos.update(valores_conocidos(app, self.atajos))
+        elif self.controles_apps is not None:
+            # Una app que no está en atajos_apps.json: lo que se ve en su ventana.
+            try:
+                bloque, nombres = self.controles_apps(texto, ultima,
+                                                      lambda n: app_conocida(n, self.atajos) is not None)
+            except Exception:
+                log.debug("No pude leer los controles de la app nueva.", exc_info=True)
+                bloque, nombres = "", set()
+            if bloque:
+                partes.append(bloque)
+                conocidos.update(nombres)
         return "\n".join(partes), conocidos
 
     def interpretar(self, texto: str, contexto: dict | None = None) -> ResultadoLLM:

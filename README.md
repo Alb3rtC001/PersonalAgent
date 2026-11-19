@@ -244,7 +244,12 @@ asistente/
 │   ├── memoria.py          # Episodios (data/episodios.jsonl)
 │   ├── registro.py         # Catálogo de skills
 │   ├── teclado.py          # Escribir texto y pulsar teclas (SendInput)
-│   └── skills/             # base.py, crear_nota, abrir/cerrar_aplicacion, restaurar_ventana, teclado (escribir/pulsar), plantilla
+│   ├── uia.py              # UI Automation: controles, campos y texto de una ventana
+│   ├── campos.py           # Campo donde se escribe, recordado por app (data/campos.json)
+│   ├── controles_app.py    # Botones y campos de una app nueva como contexto para el LLM
+│   ├── voz.py, vocabulario.py  # Voz a texto local (Whisper) y nombres propios
+│   └── skills/             # crear_nota, abrir/cerrar_aplicacion, restaurar_ventana, teclado, clic, pantalla, steam, compuesta, grabada...
+├── aprendizaje/            # Fase 7: "aprende" (reentrenar si no empeora, órdenes compuestas)
 ├── tests/                  # python -m pytest tests
 ├── evaluacion/             # Frases de evaluación + python -m evaluacion.evaluar
 ├── models/                 # llama.cpp + modelo GGUF (no se suben a git; ver models/README.md)

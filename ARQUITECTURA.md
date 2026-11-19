@@ -269,7 +269,7 @@ Cada fase termina con algo que funciona de punta a punta.
     plantillas actúan sobre contraseñas, banca, terminales, registro...
   - ✅ Registro de actividad legible (`data/actividad.log`, comando
     `actividad`, `GET /actividad`) y `POST /pausa` en la API.
-- **Fase 5 — Grabadora semántica + LLM (en curso).**
+- **Fase 5 — Grabadora semántica + LLM (hecha).**
   - ✅ Grabadora semántica (`recorder/grabadora_semantica.py`, `core/uia.py`):
     cada clic se guarda como el control pulsado (identificador, nombre,
     tipo) y su ventana; lo escrito, con el campo que tenía el foco; los
@@ -325,8 +325,16 @@ Cada fase termina con algo que funciona de punta a punta.
   - Lección: un éxito falso envenena la memoria (el LLM copia la orden
     "que salió bien"). La verificación honesta de cada skill es lo que
     protege el aprendizaje de la fase 7.
-  - ⏳ Lo que sigue: recordar el campo elegido por app (`data/campos.json`)
-    y el plan del LLM a partir de los controles de una app nueva.
+  - ✅ Campo recordado por app (`core/campos.py`, `data/campos.json`): el
+    que dices o eliges al preguntarte se usa la próxima vez sin preguntar
+    (por AutomationId o nombre). Si no hay ninguno recordado, pregunta cuál.
+  - ✅ Apps nuevas (`core/controles_app.py`): si la orden nombra una app abierta
+    que no está en `atajos_apps.json`, sus botones y campos visibles van al
+    LLM como contexto y como valores válidos. Probado: "en la calculadora
+    pulsa el botón pi" → hacer_clic 'Pi'. Si aun así no sabe, propone `grabar`.
+  - ✅ `abrir_aplicacion` ya no da por buena una ventana nueva de otro
+    programa que ya estaba en marcha (una notificación): tiene que ser de un
+    proceso arrancado por la orden (o del Explorador).
   Diseño original: UI Automation (CPU,
   sin GPU): la grabadora guarda el control pulsado (tipo, nombre,
   AutomationId) y los atajos usados, no coordenadas; con una sola
@@ -354,9 +362,23 @@ Cada fase termina con algo que funciona de punta a punta.
     solo tras el código (`VOZ_CODIGO_SEGURIDAD` o `data/codigo_voz.txt`).
   - ⏳ Opcional, más adelante: texto a voz (Piper) y palabra de activación
     (openWakeWord).
-- **Fase 7 — Aprendizaje continuo.** Episodios → dataset → reentreno del
+- **Fase 7 — Aprendizaje continuo (en curso).** Episodios → dataset → reentreno del
   clasificador y LoRA del LLM; propuesta automática de skills compuestas a
   partir de secuencias repetidas.
+  - ✅ `aprendizaje/datos.py`: las órdenes que resolvió el LLM y salieron
+    bien (verificadas, no corregidas, de una skill) → `data/frases_aprendidas.json`.
+  - ✅ `aprendizaje/reentrenar.py` (comando `aprende`): reentrena como
+    `nlu/training.py` más lo aprendido y solo cambia el modelo si no empeora
+    en aciertos ni en "seguras y mal" (evaluacion/ordenes.json). Con tus
+    episodios actuales (4 frases) no mejora y se queda el de antes.
+  - ✅ `aprendizaje/propuestas.py`: planes del LLM repetidos (lo que cambia,
+    parámetro) y órdenes que das seguidas → `aprende crea <n> <nombre>` →
+    `data/compuestas/*.json` (`core/skills/compuesta.py`, riesgo del paso
+    más delicado). Probado: "abre steam" + "ve a la biblioteca" → una orden.
+  - ⏳ LoRA del LLM con los episodios (cuando haya cientos), entorno aparte
+    con PyTorch CUDA y respetando el límite de GPU.
+  - ⏳ Clasificador más capaz (transformer pequeño que extraiga parámetros),
+    entrenado con el mismo bucle.
 - **Fase 8 — Móvil y domótica.** App cliente contra la API del PC;
   domótica vía Home Assistant (local).
 
@@ -569,7 +591,7 @@ añadiendo órdenes reales (de `data/episodios.jsonl`) al conjunto de control.
 
 ---
 
-## 11. Escribir en el campo correcto (fase 5: puntos 1 y 3 hechos)
+## 11. Escribir en el campo correcto (fase 5: puntos 1, 2 y 3 hechos)
 
 `escribir_texto` y `pulsar_teclas` ponen la **ventana** en primer plano y
 comprueban que tiene el foco del teclado. Pero dentro de la ventana el
@@ -600,7 +622,8 @@ escribir:
    falla. Si el campo no se puede leer, no se da por fallido.
 
 Probado con un formulario de dos campos (Nombre y Buscar) y con la
-Calculadora. Falta el punto 2 (recordar el campo por app) y el 4.
+Calculadora. El punto 2 también está hecho (`core/campos.py`), sin grabador:
+se aprende del campo que dices o eliges. Falta el 4.
 
 ### Solución propuesta, por capas (de más barata a más cara)
 

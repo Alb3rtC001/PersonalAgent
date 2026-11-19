@@ -174,3 +174,94 @@ def test_abrir_no_cuenta_el_aviso_del_agente_como_la_app(monkeypatch):
     monkeypatch.setattr(abrir, "handles_ventanas", lambda: {1, 2, 900, 777})
     assert skill.verificar(abrir.Resultado(True, "abierta", datos={
         "aplicacion": "Explorador", "nombres": ["Explorador"], "ventanas_antes": [1, 2]}))
+
+
+def test_abrir_solo_cuenta_ventanas_de_lo_lanzado(monkeypatch):
+    import psutil
+    lanzada = 1000.0
+    procesos = {1: ("notificaciones.exe", 500.0),    # ya estaba en marcha: una notificación
+                2: ("explorer.exe", 10.0),            # el Explorador reutiliza su proceso
+                3: ("nuevaapp.exe", 1001.5)}          # arrancado por la orden
+
+    class P:
+        def __init__(self, pid):
+            self.pid = pid
+
+        def name(self):
+            return procesos[self.pid][0]
+
+        def create_time(self):
+            return procesos[self.pid][1]
+    monkeypatch.setattr(psutil, "Process", P)
+    monkeypatch.setattr(abrir, "_pid", lambda h: h)
+    assert not abrir._de_lo_lanzado(1, lanzada)
+    assert abrir._de_lo_lanzado(2, lanzada)
+    assert abrir._de_lo_lanzado(3, lanzada)
+
+
+# --- Apps nuevas: sus controles como contexto para el LLM -------------------------------
+
+import core.controles_app as controles_app  # noqa: E402
+
+VLC = {"titulo": "concierto.mp4 - VLC media player", "proceso": "vlc.exe", "hwnd": 10, "pid": 10,
+       "oculta": False, "minimizada": False}
+OBS = {"titulo": "OBS 30.2 - Perfil: Sin título", "proceso": "obs64.exe", "hwnd": 11, "pid": 11,
+       "oculta": False, "minimizada": False}
+
+
+def test_nombres_de_ventana():
+    assert {"vlc", "vlc media player"} <= controles_app.nombres_de_ventana(VLC)
+    assert "obs64" in controles_app.nombres_de_ventana(OBS)
+
+
+def test_ventana_nombrada():
+    assert controles_app.ventana_nombrada("en vlc dale a pausa", [OBS, VLC]) is VLC
+    assert controles_app.ventana_nombrada("pon el volumen al máximo", [OBS, VLC]) is None
+    oculta = dict(VLC, oculta=True)
+    assert controles_app.ventana_nombrada("en vlc dale a pausa", [oculta]) is None
+
+
+@pytest.fixture
+def pantalla_vlc(monkeypatch):
+    monkeypatch.setattr(controles_app, "listar_ventanas_abiertas", lambda: [OBS, VLC])
+    monkeypatch.setattr(controles_app, "leer_controles",
+                        lambda v: (["Reproducir", "Pausa", "Detener"], ["Volumen"]) if v is VLC else ([], []))
+
+
+def test_contexto_de_app_nueva(pantalla_vlc):
+    bloque, nombres = controles_app.contexto_app_nueva("en vlc dale a pausa", None, lambda n: False)
+    assert "'Pausa'" in bloque and "'Volumen'" in bloque and "VLC media player" in bloque
+    assert {"pausa", "volumen", "detener"} <= nombres
+
+
+def test_app_conocida_no_se_lee(pantalla_vlc):
+    # Si está en atajos_apps.json, el LLM ya tiene sus botones: no se lee la pantalla.
+    assert controles_app.contexto_app_nueva("en vlc dale a pausa", None, lambda n: n == "vlc") == ("", set())
+
+
+def test_la_ultima_app_usada_cuenta(pantalla_vlc):
+    bloque, _ = controles_app.contexto_app_nueva("dale a pausa", "VLC media player", lambda n: False)
+    assert "'Pausa'" in bloque
+
+
+def test_el_llm_recibe_los_controles_y_los_acepta_como_valores():
+    from core.llm import InterpreteLLM
+    from core.registro import REGISTRO
+    llm = InterpreteLLM(REGISTRO, servidor=object(), ejemplos=[], atajos={}, memoria=False,
+                        controles_apps=lambda texto, ultima, conocida: ("Controles: 'Pausa'", {"pausa"}))
+    texto, conocidos = llm._contexto("en vlc dale a pausa", None)
+    assert "'Pausa'" in texto and "pausa" in conocidos
+    # Sin la función (tests, evaluación) el prompt no depende de la pantalla.
+    assert InterpreteLLM(REGISTRO, servidor=object(), ejemplos=[], atajos={}, memoria=False
+                         )._contexto("en vlc dale a pausa", None) == ("", set())
+
+
+def test_si_no_sabe_hacerlo_propone_ensenarselo():
+    from core.llm import NO_SE_HACER, ResultadoLLM
+    from core.router import Router
+
+    class LLM:
+        def interpretar(self, texto, contexto=None):
+            return ResultadoLLM(None, motivo=NO_SE_HACER)
+    router = Router(clasificador=lambda t: ("ninguna", 0.2, []), llm=LLM(), usar_llm=True)
+    assert "grabar" in router.interpretar("haz algo raro").motivo_rechazo

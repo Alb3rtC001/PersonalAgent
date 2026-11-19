@@ -122,6 +122,26 @@ def _ventanas_de(nombres: list[str]) -> list[dict]:
     return ventanas_de(nombres, incluir_ocultas=True)
 
 
+PROCESOS_REUTILIZADOS = {"explorer.exe"}   # el Explorador abre sus ventanas en el proceso de siempre
+
+
+def _de_lo_lanzado(hwnd: int, lanzada: float | None) -> bool:
+    """¿La ventana es de un programa arrancado al abrir la app (o del Explorador)?"""
+    pid = _pid(hwnd)
+    if not pid or pid == os.getpid():
+        return False
+    if lanzada is None:
+        return True
+    try:
+        import psutil
+        proceso = psutil.Process(pid)
+        if proceso.name().lower() in PROCESOS_REUTILIZADOS:
+            return True
+        return proceso.create_time() >= lanzada - 2   # margen: los relojes no van al milisegundo
+    except Exception:
+        return False
+
+
 class AbrirAplicacion(Skill):
     nombre = "abrir_aplicacion"
     descripcion = "Abre una aplicación instalada (o la trae al frente si ya está abierta)."
@@ -171,6 +191,7 @@ class AbrirAplicacion(Skill):
 
         log.info("Abriendo '%s'…", app.nombre)
         datos["ventanas_antes"] = sorted(handles_ventanas())
+        datos["lanzada"] = time.time()
         subprocess.Popen(["explorer.exe", f"shell:AppsFolder\\{app.app_id}"])
         return Resultado(True, f"'{app.nombre}' abierta.", datos=datos)
 
@@ -198,10 +219,11 @@ class AbrirAplicacion(Skill):
             for v in ventanas:
                 if traer_al_frente(v["hwnd"]):
                     return True
-            # Apps cuya ventana no lleva su nombre (p. ej. el Explorador muestra la carpeta).
-            # Las del propio agente no cuentan: el aviso "el agente está actuando" es una
-            # ventana nueva y daba la app por abierta antes de que apareciera.
-            if any(_pid(h) != os.getpid() for h in handles_ventanas() - antes):
+            # Apps cuya ventana no lleva su nombre (p. ej. el Explorador muestra la carpeta):
+            # una ventana nueva, pero de un programa arrancado por la orden. No cuentan
+            # las del propio agente (su aviso "está actuando") ni las de programas que ya
+            # estaban en marcha (una notificación que salga justo entonces).
+            if any(_de_lo_lanzado(h, datos.get("lanzada")) for h in handles_ventanas() - antes):
                 return True
             control.comprobar()   # botón de pánico
             time.sleep(0.5)

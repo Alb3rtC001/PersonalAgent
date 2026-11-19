@@ -198,6 +198,10 @@ MEMORIA_EJEMPLOS = 3
 # al caso: los de "ninguna", el primero de cada skill y los más parecidos a la orden.
 # Así el prompt nunca se sale del contexto aunque añadas muchos ejemplos.
 LLM_RESERVA_RESPUESTA = 900
+# Apps que no están en core/atajos_apps.json: si la orden nombra una (o va a la
+# última usada) y su ventana está abierta, se leen sus botones y campos visibles
+# (UI Automation, en la CPU) y se le pasan al LLM para que pueda planear clics.
+LLM_CONTROLES_APPS_NUEVAS = True
 
 # Base de datos local (SQLite, viene con Python): de momento, las tareas programadas.
 RUTA_BD = RUTA_DATOS / "agente.db"

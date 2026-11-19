@@ -20,12 +20,12 @@ from __future__ import annotations
 import difflib
 import time
 
-from core import control, uia
+from core import campos, control, uia
 from core.estado import hwnd_activo, normalizar, poner_foco
 from core.skills.abrir_aplicacion import AppInstalada, apps_instaladas
 from core.seguridad import registrar_actividad, ventana_prohibida
 from core.skills.base import Resultado, Skill
-from core.skills.ventanas import elegir_ventana, nombres_de_app
+from core.skills.ventanas import elegir_opcion, elegir_ventana, nombres_de_app, preguntar
 from core.teclado import (
     ErrorTeclas,
     describir_combinacion,
@@ -86,42 +86,78 @@ def _parecido(campo: str, nombre: str) -> float:
     return difflib.SequenceMatcher(None, a, b).ratio()
 
 
-def preparar_campo(hwnd: int, campo: str | None) -> tuple[object | None, str | None, str | None]:
+def preparar_campo(hwnd: int, campo: str | None, ventana: dict | None = None
+                   ) -> tuple[object | None, str | None, str | None]:
+    """(control, nombre, error): ver `elegir_campo`."""
+    return elegir_campo(hwnd, campo, ventana)[:3]
+
+
+def _describir_campo(control) -> tuple[str, str, str]:
+    try:
+        return uia.nombre_de_campo(control), control.AutomationId or "", control.ControlTypeName
+    except Exception:
+        return uia.nombre_de_campo(control), "", ""
+
+
+def elegir_campo(hwnd: int, campo: str | None, ventana: dict | None = None
+                 ) -> tuple[object | None, str | None, str | None, str | None]:
     """
-    Pone el foco en el campo donde escribir. Devuelve (control, nombre, error):
-    - con `campo` ("buscador"): el campo editable de la ventana con ese nombre;
-    - sin `campo`: si el foco ya está en un campo editable de la ventana, ese;
-      si no, el único campo editable que haya; si hay varios, error (que digas
-      cuál); si no hay ninguno, (None, None, None): la ventana entera recibe el
+    Pone el foco en el campo donde escribir. Devuelve (control, nombre, error, por qué):
+    - con `campo` ("buscador"): el campo editable de la ventana con ese nombre ("dicho");
+    - sin `campo`: si el foco ya está en un campo editable de la ventana, ese
+      ("foco"); si no, el único que haya ("unico"); si hay varios, el que se
+      usó la última vez en esa app ("recordado", data/campos.json) o se
+      pregunta cuál ("preguntado"); sin nadie a quien preguntar, error. Si no
+      hay ninguno, (None, None, None, None): la ventana entera recibe el
       teclado (la Calculadora).
     """
     foco = uia.foco_actual()
+    origen = None
     if campo:
         candidatos = uia.campos_editables(hwnd)
         puntuados = sorted(((_parecido(campo, uia.nombre_de_campo(c)), c) for c in candidatos),
                            key=lambda p: -p[0])
         if not puntuados or puntuados[0][0] < 0.6:
             nombres = ", ".join(f"'{uia.nombre_de_campo(c)}'" for c in candidatos) or "ninguno"
-            return None, None, f"No encuentro el campo '{campo}' (campos de texto de la ventana: {nombres})."
-        elegido = puntuados[0][1]
+            return None, None, f"No encuentro el campo '{campo}' (campos de texto de la ventana: {nombres}).", None
+        elegido, origen = puntuados[0][1], "dicho"
     elif foco is not None and uia.es_editable(foco) and _de_la_ventana(foco, hwnd):
-        return foco, uia.nombre_de_campo(foco), None
+        return foco, uia.nombre_de_campo(foco), None, "foco"
     else:
         candidatos = uia.campos_editables(hwnd)
         if not candidatos:
-            return None, None, None
-        if len(candidatos) > 1:
-            nombres = ", ".join(f"'{uia.nombre_de_campo(c)}'" for c in candidatos[:8])
-            return None, None, (f"El cursor no está en ningún campo de texto y hay {len(candidatos)} "
-                                f"({nombres}): dime en cuál, p. ej. \"escribe ... en el campo "
-                                f"{uia.nombre_de_campo(candidatos[0])}\".")
-        elegido = candidatos[0]
+            return None, None, None, None
+        if len(candidatos) == 1:
+            elegido, origen = candidatos[0], "unico"
+        else:
+            elegido = campos.buscar(candidatos, campos.recordado(ventana), _describir_campo) if ventana else None
+            origen = "recordado"
+            if elegido is None:
+                elegido, error = _preguntar_campo(candidatos)
+                if error:
+                    return None, None, error, None
+                origen = "preguntado"
     try:
         elegido.SetFocus()
         time.sleep(0.15)
     except Exception:
         pass
-    return elegido, uia.nombre_de_campo(elegido), None
+    return elegido, uia.nombre_de_campo(elegido), None, origen
+
+
+def _preguntar_campo(candidatos: list) -> tuple[object | None, str | None]:
+    nombres = [uia.nombre_de_campo(c) for c in candidatos[:8]]
+    lista = "; ".join(f"{i}) {n}" for i, n in enumerate(nombres, 1))
+    respuesta = preguntar(f"El cursor no está en ningún campo de texto. ¿En cuál escribo? {lista}. "
+                          "(número o nombre; me acordaré para la próxima vez)")
+    if respuesta is None:
+        return None, (f"El cursor no está en ningún campo de texto y hay {len(candidatos)} "
+                      f"({', '.join(repr(n) for n in nombres)}): dime en cuál, p. ej. \"escribe ... en el "
+                      f"campo {nombres[0]}\".")
+    i = elegir_opcion(respuesta, nombres)
+    if i is None:
+        return None, f"No sé cuál es '{respuesta}': no escribo nada."
+    return candidatos[i], None
 
 
 def _de_la_ventana(control, hwnd: int) -> bool:
@@ -204,7 +240,7 @@ class EscribirTexto(_EnAplicacion):
             return Resultado(False, error)
 
         with uia.en_hilo():
-            control_campo, nombre_campo, error = preparar_campo(ventana["hwnd"], campo)
+            control_campo, nombre_campo, error, origen = elegir_campo(ventana["hwnd"], campo, ventana)
             if error:
                 return Resultado(False, error)
             reemplazado, error = vaciar_si_es_busqueda(control_campo, nombre_campo)
@@ -213,7 +249,12 @@ class EscribirTexto(_EnAplicacion):
             esperados = len(texto.encode("utf-16-le")) // 2
             enviados = escribir(texto)
             comprobado = comprobar_escrito(control_campo, texto, exacto=reemplazado)
+            if origen in ("dicho", "preguntado") and comprobado is not False:
+                # "En esta app, aquí": la próxima vez, sin preguntar.
+                campos.recordar(ventana, *_describir_campo(control_campo))
         donde = f"'{ventana['titulo']}'" + (f", campo '{nombre_campo}'" if nombre_campo else "")
+        if origen == "recordado":
+            donde += " (el que usaste la última vez en esta app)"
         return Resultado(True, f"Escrito en {donde}: {texto!r}" + (" (antes he vaciado el campo)" if reemplazado else ""),
                          datos={
             "hwnd": ventana["hwnd"], "titulo": ventana["titulo"], "aplicacion": aplicacion,

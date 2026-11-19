@@ -13,6 +13,7 @@ from core.skills.base import Skill
 from core.skills.grabada import cargar_skills_grabadas
 from core.skills.cerrar_aplicacion import CerrarAplicacion
 from core.skills.clic import HacerClic
+from core.skills.compuesta import cargar_compuestas
 from core.skills.crear_nota import CrearNota
 from core.skills.plantilla import cargar_skills_plantilla
 from core.skills.restaurar_ventana import RestaurarVentana
@@ -43,6 +44,13 @@ def construir_registro() -> dict[str, Skill]:
     # una plantilla antigua, gana la grabación.
     registro.update({s.nombre: s for s in cargar_skills_grabadas()})
     registro.update({s.nombre: s for s in SKILLS_NATIVAS})
+    # Órdenes compuestas aprendidas de tu uso (data/compuestas/*.json, fase 7): al
+    # final, con el catálogo ya hecho (heredan el riesgo de su paso más delicado).
+    # Nunca sustituyen a una skill que ya existe.
+    for compuesta in cargar_compuestas():
+        compuesta._registro = registro
+        compuesta.riesgo = compuesta._riesgo_maximo()
+        registro.setdefault(compuesta.nombre, compuesta)
     return registro
 
 

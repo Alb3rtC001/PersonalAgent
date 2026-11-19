@@ -65,7 +65,7 @@ def pantalla(monkeypatch):
     monkeypatch.setattr(mod, "escribir", lambda texto: estado["escrito"].append(texto) or len(texto))
     monkeypatch.setattr(mod, "pulsar", lambda c: estado["pulsado"].append(c) or True)
     # Sin UI Automation real: la ventana entera recibe el teclado y no se puede leer.
-    monkeypatch.setattr(mod, "preparar_campo", lambda hwnd, campo: (None, None, None))
+    monkeypatch.setattr(mod, "elegir_campo", lambda hwnd, campo, ventana=None: (None, None, None, None))
     monkeypatch.setattr(mod, "comprobar_escrito", lambda c, t, exacto=False: None)
     return estado
 

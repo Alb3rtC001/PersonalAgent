@@ -113,6 +113,64 @@ def test_sin_campos_escribe_en_la_ventana(campos):
     assert preparar_campo(100, None) == (None, None, None)
 
 
+# --- Recordar el campo de cada app (data/campos.json) ---------------------------
+
+STEAM = {"hwnd": 100, "titulo": "Steam", "proceso": "steamwebhelper.exe"}
+
+
+def test_campo_recordado_por_app(campos, tmp_path):
+    from core import campos as memoria
+    from core.skills.teclado import elegir_campo
+    filtro, buscar = Control("Filtro"), Control("Buscar por nombre")
+    campos([filtro, buscar])
+    assert elegir_campo(100, None, STEAM)[2] is not None          # sin recordar nada y sin preguntar: error
+    memoria.recordar(STEAM, "Buscar por nombre", "", "EditControl")
+    control, nombre, error, origen = elegir_campo(100, None, STEAM)
+    assert (control, nombre, error, origen) == (buscar, "Buscar por nombre", None, "recordado") and buscar.con_foco
+    # Otra app no usa lo recordado para Steam.
+    assert elegir_campo(100, None, {"titulo": "Discord", "proceso": "Discord.exe"})[3] is None
+
+
+def test_campo_recordado_por_id_aunque_cambie_el_nombre(campos):
+    from core import campos as memoria
+    from core.skills.teclado import elegir_campo
+    mensaje = Control("Enviar mensaje a #general")
+    mensaje.AutomationId = "chat-input"
+    campos([Control("Buscar"), mensaje])
+    memoria.recordar(STEAM, "Enviar mensaje a #random", "chat-input", "EditControl")
+    assert elegir_campo(100, None, STEAM)[0] is mensaje
+
+
+def test_si_no_recuerda_pregunta_y_se_acuerda(campos, monkeypatch):
+    from core import campos as memoria
+    from core.skills import ventanas
+    from core.skills.teclado import elegir_campo
+    filtro, buscar = Control("Filtro"), Control("Buscar por nombre")
+    campos([filtro, buscar])
+    preguntas = []
+    with ventanas.preguntando_con(lambda p: preguntas.append(p) or "2"):
+        control, _, error, origen = elegir_campo(100, None, STEAM)
+    assert control is buscar and origen == "preguntado" and "2) Buscar por nombre" in preguntas[0]
+
+
+def test_escribir_texto_recuerda_el_campo_dicho(campos, monkeypatch):
+    from core import campos as memoria
+    filtro, buscar = Control("Filtro"), Control("Buscar por nombre", valor="")
+    campos([filtro, buscar])
+    s = teclado.EscribirTexto()
+    s._apps = []
+    monkeypatch.setattr(teclado, "elegir_ventana", lambda nombres, app: (STEAM, None))
+    monkeypatch.setattr(teclado, "poner_foco", lambda hwnd: True)
+    monkeypatch.setattr(teclado, "hwnd_activo", lambda: 100)
+    monkeypatch.setattr(teclado, "escribir", lambda texto: setattr(buscar, "valor", texto) or len(texto))
+    r = s.ejecutar("hades", "steam", campo="buscador")
+    assert r.ok and memoria.recordado(STEAM)["nombre"] == "Buscar por nombre"
+    # La siguiente vez, sin decir el campo: usa el recordado y lo dice.
+    buscar.valor = ""
+    r = s.ejecutar("celeste", "steam")
+    assert r.ok and "la última vez" in r.mensaje and buscar.valor == "celeste"
+
+
 # --- Comprobar lo escrito ------------------------------------------------------
 
 def test_comprobar_escrito(campos):

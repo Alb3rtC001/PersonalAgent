@@ -56,12 +56,12 @@ CONJUNCION = re.compile(r"\s(y|e|luego|despues|y luego|y despues|tras eso|a cont
 class ClasificadorBow:
     """El clasificador bag-of-words de nlu/ (necesita nlu/modelo.pt: python nlu/training.py)."""
 
-    def __init__(self):
+    def __init__(self, ruta_modelo=None, ruta_vocabulario=None):
         from nlu.model import cargar_modelo
-        from nlu.vocabulary import cargar_vocabulario
-        self.vocab, intenciones = cargar_vocabulario()
+        from nlu.vocabulary import RUTA_VOCABULARIO, cargar_vocabulario
+        self.vocab, intenciones = cargar_vocabulario(ruta_vocabulario or RUTA_VOCABULARIO)
         self.idx_a_intencion = {v: k for k, v in intenciones.items()}
-        self.modelo = cargar_modelo()
+        self.modelo = cargar_modelo(ruta_modelo)
 
     def __call__(self, texto: str) -> tuple[str, float, list[str]]:
         from nlu.model import predecir_proba
@@ -93,9 +93,12 @@ class Router:
     # --- Control del LLM -------------------------------------------------------
 
     def _crear_llm(self):
+        from config import LLM_CONTROLES_APPS_NUEVAS
+        from core.controles_app import contexto_app_nueva
         from core.llm import InterpreteLLM, servidor_compartido
         servidor = servidor_compartido(capas_gpu=0 if self._llm_cpu else None)
-        return InterpreteLLM(self.registro, servidor=servidor)
+        return InterpreteLLM(self.registro, servidor=servidor,
+                             controles_apps=contexto_app_nueva if LLM_CONTROLES_APPS_NUEVAS else None)
 
     def activar_llm(self, activo: bool) -> None:
         """
@@ -225,9 +228,14 @@ class Router:
             return Interpretacion(texto, interp.skill, interp.confianza, skill=interp.skill,
                                   params=params, origen="llm")
         params = dict(r.params) if r.skill else {}
+        from core.llm import NO_SE_HACER
+        motivo = None if r.skill else r.motivo
+        if motivo == NO_SE_HACER:
+            motivo += (" Si quieres, enséñamelo: en la interfaz escribe «grabar <nombre>», hazlo tú una "
+                       "vez y a partir de ahí me lo podrás pedir.")
         return Interpretacion(
             texto, r.skill or "ninguna", interp.confianza, skill=r.skill, params=params,
-            motivo_rechazo=None if r.skill else r.motivo, origen="llm",
+            motivo_rechazo=motivo, origen="llm",
         )
 
 

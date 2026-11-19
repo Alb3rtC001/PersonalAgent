@@ -315,8 +315,12 @@ por buena sin serlo, la volverá a hacer igual: márcala como fallida
 **Elegir el campo** (`escribir_texto` con `campo`): `escribe pizza en el
 buscador de chrome`, `en telegram escribe hola en el campo del mensaje`.
 Si no dices el campo, escribe donde está el cursor (si está en un cuadro
-de texto de esa ventana) o en el único que haya; si hay varios, te
-pregunta cuál. En los campos de búsqueda (buscar, filtrar, direcciones)
+de texto de esa ventana) o en el único que haya. Si hay varios, usa el que
+usaste la última vez en esa app y lo dice ("campo 'Buscar por nombre' (el
+que usaste la última vez en esta app)"). Si no hay ninguno recordado, te
+pregunta cuál con una lista numerada. El que dices ("en el buscador") o
+eliges al preguntarte se recuerda por app en `data/campos.json`: se lo
+dices una vez. En los campos de búsqueda (buscar, filtrar, direcciones)
 primero borra lo que hubiera (y comprueba que ha quedado vacío; si no, no
 escribe encima); en los demás (un mensaje a medias) se escribe a
 continuación, para no borrarte nada. Después lee el campo para comprobar que
@@ -334,6 +338,15 @@ el texto está; si no está, la orden cuenta como fallida.
 
 En las tareas programadas y en la API no hay a quién preguntar: si hay
 duda, no hace nada y lo dice.
+
+**Apps que el agente no conoce** (las que no están en `core/atajos_apps.json`):
+si la orden nombra una app abierta ("en la calculadora pulsa el botón pi",
+"en vlc dale a pausa") o va a la última que usaste, lee los botones y campos
+que se ven en su ventana y se los pasa al LLM. Así puede planear clics y
+escritura en cualquier app, siempre con nombres que existen de verdad. Solo
+se le pasan los nombres de los controles, no el texto de la ventana. Se
+desactiva con `LLM_CONTROLES_APPS_NUEVAS = False`. Si aun así no sabe
+hacerlo, te propone enseñárselo con `grabar <nombre>`.
 
 **Cerrar Steam** (`cierra steam`): usa su propia salida (`steam://exit`,
 como "Steam > Salir"), así que se cierra entero y **la sesión sigue
@@ -461,18 +474,40 @@ python .\nlu\training.py                   # reentrenar (segundos, CPU)
   preguntas). Añade ahí las que se confunda.
 - Después de reentrenar, mira las frases de prueba que imprime al final.
 
-### El bucle de aprendizaje (hoy, a mano)
+### El bucle de aprendizaje: `aprende` (fase 7)
 
-Cada orden queda en `data/episodios.jsonl`. Las que resolvió el LLM y
-funcionaron son las mejores candidatas para el dataset: así la próxima vez
-las resuelve tu clasificador, sin LLM y al instante. Para listarlas:
+Cada orden queda en `data/episodios.jsonl`. Escribe **`aprende`** en la
+interfaz o en la consola (o `python -m aprendizaje.reentrenar`). Hace cuatro
+cosas:
 
-```powershell
-python -c "import json; [print(e['skill'], '|', e['texto']) for e in map(json.loads, open('data/episodios.jsonl', encoding='utf-8')) if e.get('origen') == 'llm' and e.get('ok')]"
-```
+1. Recoge las órdenes que resolvió el LLM, que salieron bien (verificadas) y
+   que no has corregido después. Las guarda como frases nuevas en
+   `data/frases_aprendidas.json`. Las que acertaba ya el clasificador no
+   aportan nada; las de varios pasos, tampoco (el clasificador solo sabe de
+   una acción por frase).
+2. Reentrena el clasificador con `nlu/dataset.json` y esas frases, igual
+   que `nlu/training.py`. Lo mide con `evaluacion/ordenes.json`: los
+   aciertos y las "seguras y mal" (seguro de sí y equivocado, así que no
+   pregunta al LLM). **Solo cambia el modelo si el nuevo no es peor en
+   ninguna de las dos.** El anterior queda en `nlu/modelo.pt.anterior`.
+   No hace falta reiniciar.
+3. Te enseña las últimas órdenes que no entendió, por si quieres
+   enseñárselas.
+4. Te propone **órdenes compuestas** con lo que repites:
+   - planes de varios pasos que el LLM te ha hecho al menos 3 veces con la
+     misma forma ("busca X en opera" → Ctrl+L, escribir X, Enter). Lo que
+     cambia (X) pasa a ser un parámetro;
+   - órdenes que das seguidas, siempre igual ("abre steam" y enseguida "ve
+     a la biblioteca").
 
-Añádelas con `add_phrases.py` (la intención es la skill que aparece) y
-reentrena. Con el tiempo el LLM se usará cada vez menos.
+   Las aceptas con `aprende crea <n> <nombre>` (p. ej. `aprende crea 1
+   biblioteca de steam`). Se guardan en `data/compuestas/` y desde ese
+   momento son una skill más. Tienen el riesgo de su paso más delicado,
+   así que se confirman como él. Abrir y cerrar la misma app, o repetir
+   la misma orden, no se proponen.
+
+Con pocos datos lo normal es "no mejora": se queda con el modelo de antes.
+Con el uso, el clasificador resolverá más órdenes al instante sin LLM.
 
 ---
 
@@ -530,14 +565,13 @@ python -m evaluacion.evaluar --ordenes evaluacion\ordenes_control.json   # 30 fr
 
 ## 9. Lo que todavía no hace
 
-- **Contexto entre órdenes** ("abre WhatsApp" → "escríbele a mamá"): fase 4.
-- **Recordar el campo por app:** si eliges "el buscador" en una app, la
-  próxima vez no lo recuerda solo (hay que volver a decirlo).
 - **Apps sin accesibilidad** (juegos, lienzos): no puede leerlas ni elegir
   campos en ellas; haría falta visión, que pide más GPU.
 - **Plantillas antiguas frágiles:** las del grabador antiguo repiten clics
   por coordenadas; las de `grabar` (sección 4) no tienen ese problema.
-- **Aprendizaje automático:** el paso de episodios al dataset es manual
-  (sección 6); automatizarlo y el LoRA son la fase 7.
+- **Ajuste fino del LLM (LoRA):** falta, es el siguiente paso de la fase 7.
+  Necesita cientos de episodios reales correctos y un entorno aparte con
+  PyTorch CUDA. Hoy el LLM aprende con la memoria de órdenes parecidas y el
+  clasificador con `aprende` (sección 6).
 - **Clasificador pequeño:** el bag-of-words se sustituirá por un
   transformer pequeño propio que también extraiga los parámetros.
