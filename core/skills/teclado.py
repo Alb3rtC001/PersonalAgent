@@ -22,7 +22,7 @@ import time
 
 from core import control, uia
 from core.estado import hwnd_activo, normalizar, poner_foco
-from core.skills.abrir_aplicacion import AppInstalada, listar_apps_instaladas
+from core.skills.abrir_aplicacion import AppInstalada, apps_instaladas
 from core.seguridad import registrar_actividad, ventana_prohibida
 from core.skills.base import Resultado, Skill
 from core.skills.ventanas import elegir_ventana, nombres_de_app
@@ -54,12 +54,8 @@ class _EnAplicacion(Skill):
         self._apps: list[AppInstalada] | None = None
 
     def _enfocar(self, aplicacion: str) -> tuple[dict | None, str | None]:
-        try:
-            if self._apps is None:
-                self._apps = listar_apps_instaladas()
-        except Exception:
-            self._apps = []
-        ventana, duda = elegir_ventana(nombres_de_app(aplicacion, self._apps), aplicacion)
+        apps = self._apps if self._apps is not None else apps_instaladas()
+        ventana, duda = elegir_ventana(nombres_de_app(aplicacion, apps), aplicacion)
         if ventana is None:
             return None, duda or f"No encuentro ninguna ventana abierta de '{aplicacion}'."
         prohibida = ventana_prohibida(ventana)

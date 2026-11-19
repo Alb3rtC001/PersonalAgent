@@ -176,9 +176,11 @@ def _seleccionado(control_uia) -> bool:
 def _clic(x: int, y: int) -> None:
     import pyautogui
     antes = pyautogui.position()
-    pyautogui.click(x, y)
+    # Sin la pausa de 0,1 s que pyautogui mete tras cada llamada: después del
+    # clic ya se espera (PAUSA_TRAS_CLIC) a ver si cambia algo.
+    pyautogui.click(x, y, _pause=False)
     try:
-        pyautogui.moveTo(*antes)   # el ratón vuelve a donde lo tenías
+        pyautogui.moveTo(*antes, _pause=False)   # el ratón vuelve a donde lo tenías
     except Exception:
         pass
 

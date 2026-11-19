@@ -20,14 +20,16 @@ from __future__ import annotations
 import difflib
 import json
 import logging
+import os
 import subprocess
+import threading
 import time
 from dataclasses import dataclass
 
 from config import ALIAS_APLICACIONES, ESPERA_MAX_APERTURA
 from core import control
 from core.estado import (
-    buscar_ventana,
+    _pid,
     es_visible,
     handles_ventanas,
     normalizar,
@@ -63,6 +65,28 @@ def listar_apps_instaladas() -> list[AppInstalada]:
     return [AppInstalada(d["Name"], d["AppID"]) for d in datos if d.get("Name") and d.get("AppID")]
 
 
+_apps_cache: list[AppInstalada] | None = None
+_apps_lock = threading.Lock()
+
+
+def apps_instaladas(refrescar: bool = False) -> list[AppInstalada]:
+    """
+    Las apps del menú Inicio, consultadas UNA vez (tarda ~1,5 s) y compartidas
+    por todas las skills (abrir, cerrar, escribir, clic...). Con `refrescar`, se
+    vuelve a consultar (una app recién instalada). Si falla, lista vacía (y se
+    reintenta la próxima vez).
+    """
+    global _apps_cache
+    with _apps_lock:
+        if _apps_cache is None or refrescar:
+            try:
+                _apps_cache = listar_apps_instaladas()
+            except Exception:
+                log.warning("No pude leer las apps del menú Inicio.", exc_info=True)
+                return _apps_cache or []
+        return _apps_cache
+
+
 def _puntuar(consulta: str, nombre: str) -> float:
     if nombre == consulta:
         return 1.0
@@ -93,12 +117,9 @@ def buscar_app(consulta: str, apps: list[AppInstalada]) -> list[tuple[float, App
 
 
 def _ventanas_de(nombres: list[str]) -> list[dict]:
-    """Ventanas (visibles u ocultas en la bandeja) que coinciden con alguno de los nombres."""
-    encontradas: dict[int, dict] = {}
-    for nombre in nombres:
-        for v in buscar_ventana(nombre, incluir_ocultas=True):
-            encontradas[v["hwnd"]] = v
-    return list(encontradas.values())
+    """Ventanas (visibles u ocultas en la bandeja) de la app: no una pestaña que hable de ella."""
+    from core.skills.ventanas import ventanas_de   # aquí: ventanas.py importa este módulo
+    return ventanas_de(nombres, incluir_ocultas=True)
 
 
 class AbrirAplicacion(Skill):
@@ -113,9 +134,12 @@ class AbrirAplicacion(Skill):
         self._apps: list[AppInstalada] | None = None
 
     def _indice(self, refrescar: bool = False) -> list[AppInstalada]:
-        if self._apps is None or refrescar:
-            self._apps = listar_apps_instaladas()
-        return self._apps
+        if self._apps is not None and not refrescar:
+            return self._apps          # fijada a mano (tests)
+        return apps_instaladas(refrescar)
+
+    def precargar(self) -> None:
+        apps_instaladas()
 
     def ejecutar(self, aplicacion: str = "") -> Resultado:
         candidatas = buscar_app(aplicacion, self._indice())
@@ -175,7 +199,9 @@ class AbrirAplicacion(Skill):
                 if traer_al_frente(v["hwnd"]):
                     return True
             # Apps cuya ventana no lleva su nombre (p. ej. el Explorador muestra la carpeta).
-            if handles_ventanas() - antes:
+            # Las del propio agente no cuentan: el aviso "el agente está actuando" es una
+            # ventana nueva y daba la app por abierta antes de que apareciera.
+            if any(_pid(h) != os.getpid() for h in handles_ventanas() - antes):
                 return True
             control.comprobar()   # botón de pánico
             time.sleep(0.5)

@@ -73,10 +73,21 @@ class Agente:
     # --- LLM -------------------------------------------------------------------
 
     def precargar(self) -> None:
-        """Carga el LLM en segundo plano para que la primera orden dudosa no espere."""
+        """
+        En segundo plano, para que la primera orden no espere: el LLM y lo que
+        las skills tardan en preparar (la lista de apps instaladas, ~1,5 s).
+        """
         precargar = getattr(self.router, "precargar", None)
         if precargar is not None:
             threading.Thread(target=precargar, daemon=True, name="precarga-llm").start()
+        threading.Thread(target=self._precargar_skills, daemon=True, name="precarga-skills").start()
+
+    def _precargar_skills(self) -> None:
+        for skill in list(self.registro.values()):
+            try:
+                skill.precargar()
+            except Exception:   # una precarga que falla solo hace más lenta la primera orden
+                log.debug("No se pudo precargar %s.", skill.nombre, exc_info=True)
 
     def activar_llm(self, activo: bool) -> dict[str, Any]:
         """Activa o desactiva el LLM en marcha (desactivarlo libera la VRAM)."""

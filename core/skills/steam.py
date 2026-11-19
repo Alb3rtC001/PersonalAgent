@@ -159,9 +159,12 @@ def buscar_juego(consulta: str, juegos: list[Juego]) -> Juego | None:
 
 def _proceso_del_juego(juego: Juego) -> int | None:
     """PID de un proceso que se ejecuta desde la carpeta del juego, o None."""
-    if psutil is None or not juego.carpeta.is_dir():
+    # Sin carpeta propia (installdir vacío) sería "common": valdría cualquier juego.
+    if psutil is None or juego.carpeta.name.lower() == "common" or not juego.carpeta.is_dir():
         return None
-    carpeta = str(juego.carpeta.resolve()).lower()
+    # Con el separador al final: "...\Slay the Spire\" no es el principio de
+    # "...\Slay the Spire 2\juego.exe" (otro juego).
+    carpeta = os.path.join(str(juego.carpeta.resolve()), "").lower()
     for p in psutil.process_iter(["pid", "exe"]):
         exe = (p.info.get("exe") or "").lower()
         if exe.startswith(carpeta):

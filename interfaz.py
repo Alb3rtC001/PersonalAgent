@@ -309,6 +309,8 @@ class Interfaz:
         def llamar():
             try:
                 caja["valor"] = funcion()
+            except Exception:
+                logging.getLogger("personalagent").exception("Error en una ventana de la interfaz:")
             finally:
                 listo.set()
         self.raiz.after(0, llamar)
@@ -317,14 +319,17 @@ class Interfaz:
 
     def confirmar(self, accion: str) -> bool:
         codigo = self._codigo_voz()
-        respuesta, por_voz = self._en_ventana(lambda: DialogoSeguridad(self, "si_no", accion, codigo).abrir())
+        # Si la ventana no se pudiera abrir, se toma como "no confirmado" (lo seguro).
+        respuesta, por_voz = self._en_ventana(
+            lambda: DialogoSeguridad(self, "si_no", accion, codigo).abrir()) or (False, False)
         como = " (de palabra, con el código)" if por_voz else ""
         self.escribir(f"  {'✔ confirmado' if respuesta else '✘ no confirmado'}{como}: {accion}", "sistema")
         return bool(respuesta)
 
     def pedir(self, pregunta: str) -> str:
         codigo = self._codigo_voz()
-        respuesta, por_voz = self._en_ventana(lambda: DialogoSeguridad(self, "texto", pregunta, codigo).abrir())
+        respuesta, por_voz = self._en_ventana(
+            lambda: DialogoSeguridad(self, "texto", pregunta, codigo).abrir()) or (None, False)
         if por_voz and respuesta:
             self.escribir(f"  🎤 Respuesta de palabra: {respuesta}", "sistema")
         return respuesta or ""
@@ -342,9 +347,10 @@ class Interfaz:
         if not texto or self.ocupado:
             return
         self.orden_por_voz = por_voz
-        # Si estaba escuchando la confirmación de voz, ya no hace falta.
         self.dictado = None
-        if self.grabacion is not None and self.esperando_confirmacion:
+        # Si estaba escuchando (la confirmación o un dictado a medias), se descarta:
+        # si no, lo que se transcriba después pisaría el cuadro con la orden en marcha.
+        if self.grabacion is not None:
             self.grabacion.parar("descartar")
         self.entrada.delete(0, "end")
         if texto.lower() == "salir":
@@ -512,7 +518,7 @@ class Interfaz:
         self.dictado = texto
         self.entrada.focus_set()
         self.entrada.icursor("end")
-        if VOZ_ESCUCHAR_CONFIRMACION:
+        if VOZ_ESCUCHAR_CONFIRMACION and not self.ocupado:
             self.escribir(f"🎤 He entendido: «{texto}». Di «enviar» (o pulsa Enter) para mandarla, "
                           "«cancelar» para borrarla, o dímela otra vez.", "aviso")
             self._escuchar(confirmacion=True)

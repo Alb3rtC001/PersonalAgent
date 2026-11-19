@@ -375,11 +375,15 @@ def obtener_contexto_click(x: int, y: int, monitores: list[dict] | None = None) 
 def consultar_hecho(hecho: str) -> bool:
     """Comprueba un hecho "predicado:argumento" en el sistema real."""
     predicado, _, argumento = hecho.partition(":")
+    if predicado not in ("abierta", "visible"):
+        return False
+    # Las ventanas de la app, no cualquiera cuyo título la nombre (una pestaña
+    # "Steam Store - Opera" no quiere decir que Steam esté abierto).
+    from core.skills.ventanas import ventanas_de
+    ventanas = ventanas_de([argumento], incluir_ocultas=True)
     if predicado == "abierta":
-        return bool(buscar_ventana(argumento, incluir_ocultas=True))
-    if predicado == "visible":
-        return any(es_visible(v) for v in buscar_ventana(argumento, incluir_ocultas=True))
-    return False
+        return bool(ventanas)
+    return any(es_visible(v) for v in ventanas)
 
 
 class EstadoMundo:

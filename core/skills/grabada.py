@@ -104,7 +104,7 @@ class SkillGrabada(Skill):
             return self._clic(paso, ventana)
         if tipo == "escribir":
             texto = _sustituir(paso["texto"], params)
-            if paso.get("control", {}).get("id") or paso.get("control", {}).get("nombre"):
+            if ventana is not None and (paso.get("control", {}).get("id") or paso.get("control", {}).get("nombre")):
                 campo = uia.buscar_control(ventana["hwnd"], paso["control"], espera=2.0)
                 if campo is not None:
                     try:

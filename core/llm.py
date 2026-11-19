@@ -51,7 +51,7 @@ from config import (
     RUTA_MODELO_LLM,
 )
 from core.atajos import (app_conocida, apps_mencionadas, cargar_atajos, completar_enter, describir_atajos,
-                         valores_conocidos)
+                         plan_incompleto, valores_conocidos)
 from core.estado import normalizar
 from core.gguf import numero_de_capas
 from core.memoria import MemoriaEjemplos, _trigramas
@@ -777,6 +777,10 @@ class InterpreteLLM:
             return ResultadoLLM(None, motivo="El LLM no ha devuelto ningún paso.", crudo=crudo)
         resultados = [self._validar_paso(p if isinstance(p, dict) else {}, texto, conocidos)
                       for p in pasos[:MAX_PASOS]]
+        if all(r.skill is not None for r in resultados):
+            incompleto = plan_incompleto([(r.skill, r.params) for r in resultados], texto, self.atajos)
+            if incompleto:
+                return ResultadoLLM(None, motivo=f"El plan está incompleto: {incompleto}", crudo=crudo)
         if len(resultados) == 1:
             resultados[0].crudo = crudo
             return resultados[0]

@@ -89,7 +89,12 @@ def _cuando_absoluto(m: re.Match, ahora: datetime) -> datetime | None:
     elif frac == "menos cuarto":
         hora, minuto = hora - 1, 45
     parte = m.group("parte")
-    if parte in ("tarde", "noche") and hora < 12:
+    # "las 12 de la noche" es la medianoche con la que acaba ese día (00:00 del
+    # siguiente); "las 12 de la madrugada", las 00:00. No las 12 del mediodía.
+    fin_del_dia = parte == "noche" and hora == 12
+    if parte in ("noche", "madrugada") and hora == 12:
+        hora = 0
+    elif parte in ("tarde", "noche") and hora < 12:
         hora += 12
     elif parte == "mediodia" and hora < 12:
         hora += 12 if hora < 5 else 0
@@ -97,10 +102,14 @@ def _cuando_absoluto(m: re.Match, ahora: datetime) -> datetime | None:
         return None
     cuando = ahora.replace(hour=hora, minute=minuto, second=0, microsecond=0)
     dia = m.group("dia")
+    if fin_del_dia:
+        cuando += timedelta(days=1)
     if dia == "manana":
         cuando += timedelta(days=1)
     elif dia == "pasado manana":
         cuando += timedelta(days=2)
+    elif fin_del_dia:
+        pass   # las 00:00 de mañana: siempre por venir
     elif cuando <= ahora:
         # "a las 5" cuando ya son las 18:00: si sin "de la mañana/tarde" la hora
         # de la tarde aún no ha pasado, es esa; si no, mañana.

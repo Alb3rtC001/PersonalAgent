@@ -56,6 +56,28 @@ def ventanas_de_app(nombres: list[str], incluir_ocultas: bool = True) -> list[di
             if ventana_de_app(v, nombres)]
 
 
+def ventanas_de(nombres: list[str], incluir_ocultas: bool = True, por_titulo: bool = False) -> list[dict]:
+    """
+    Las ventanas de una app para abrirla, restaurarla o saber si está abierta:
+    1. coincidencia estricta (ventana_de_app);
+    2. si no hay, el proceso contiene el nombre ("steam" → steamwebhelper.exe);
+    3. con `por_titulo`, si aún no hay, el título contiene el nombre ("restaura
+       la ventana de recetas").
+    Nunca por el título a secas de entrada: una pestaña "Steam Store - Opera"
+    no es Steam, y traerla al frente (o creer que Steam ya está abierto) es un error.
+    """
+    todas = listar_ventanas_abiertas(incluir_ocultas=incluir_ocultas)
+    claves = [normalizar(n) for n in nombres if normalizar(n)]
+    estrictas = [v for v in todas if ventana_de_app(v, nombres)]
+    if estrictas or not claves:
+        return estrictas
+    por_proceso = [v for v in todas
+                   if any(c.replace(" ", "") in normalizar(Path(v.get("proceso") or "").stem) for c in claves)]
+    if por_proceso or not por_titulo:
+        return por_proceso
+    return [v for v in todas if any(c in normalizar(v.get("titulo", "")) for c in claves)]
+
+
 def ventana_principal(nombres: list[str]) -> dict | None:
     """La ventana de la app donde actuar: la visible antes que la minimizada u oculta."""
     ventanas = ventanas_de_app(nombres)

@@ -5,9 +5,9 @@ Skill nativa: traer al frente una ventana que ya está abierta
 
 from __future__ import annotations
 
-from core.estado import buscar_ventana, es_visible, traer_al_frente, ventana_visible
+from core.estado import es_visible, traer_al_frente, ventana_visible
 from core.skills.base import Resultado, Skill
-from core.skills.ventanas import elegir_entre
+from core.skills.ventanas import elegir_entre, ventanas_de
 
 
 class RestaurarVentana(Skill):
@@ -20,7 +20,7 @@ class RestaurarVentana(Skill):
     EFECTOS = {"visible:{aplicacion}": True}
 
     def ejecutar(self, aplicacion: str = "") -> Resultado:
-        ventanas = buscar_ventana(aplicacion, incluir_ocultas=True)
+        ventanas = ventanas_de([aplicacion], incluir_ocultas=True, por_titulo=True)
         if not ventanas:
             return Resultado(False, f"No hay ninguna ventana abierta de '{aplicacion}'.")
 

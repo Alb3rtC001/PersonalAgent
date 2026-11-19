@@ -119,6 +119,28 @@ def completar_enter(pasos: list[tuple[str, dict]], atajos: dict[str, dict]) -> l
     return resultado
 
 
+PIDE_ESCRIBIR = re.compile(r"\b(busc|escrib|entr[ae]\b|ve al|ve a la|pon\b)\w*")
+
+
+def plan_incompleto(pasos: list[tuple[str, dict]], texto: str, atajos: dict[str, dict]) -> str | None:
+    """
+    El plan se queda en "ir a la barra de direcciones" sin escribir nada, y la
+    orden pedía buscar o escribir algo ("busca recetas en google" → solo
+    Ctrl+L). Devuelve el motivo (para que el LLM lo corrija) o None.
+    """
+    if not PIDE_ESCRIBIR.search(normalizar(texto)):
+        return None
+    app = None
+    for i, (skill, params) in enumerate(pasos):
+        app = params.get("aplicacion") or app
+        if skill == "pulsar_teclas" and atajo_pide_enter(app, params.get("teclas", ""), atajos):
+            siguiente = pasos[i + 1][0] if i + 1 < len(pasos) else None
+            if siguiente != "escribir_texto":
+                return (f"después de '{params.get('teclas')}' hay que escribir lo que pide la orden "
+                        "(escribir_texto) y pulsar enter: faltan esos pasos.")
+    return None
+
+
 def valores_conocidos(app: str, atajos: dict[str, dict]) -> set[str]:
     """Teclas, botones y campos de una app: el LLM puede usarlos aunque no estén en la frase."""
     info = atajos.get(app, {})

@@ -125,6 +125,9 @@ class Skill(ABC):
         """
         return None
 
+    def precargar(self) -> None:
+        """Prepara en segundo plano lo que tarde (se llama al arrancar el agente). Por defecto, nada."""
+
     def describir_paso(self, params: dict[str, Any]) -> str:
         """Frase corta para logs y confirmaciones."""
         args = ", ".join(f"{k}='{v}'" for k, v in params.items())

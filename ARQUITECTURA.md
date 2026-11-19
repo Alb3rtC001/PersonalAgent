@@ -193,7 +193,13 @@ tests/
 | Al dar el foco a una ventana se perdía la primera tecla escrita después (el truco de pulsar ALT activaba el menú de la app) | `AttachThreadInput` + movimiento de ratón nulo; sin teclas falsas | 3 ✅ |
 | Las apps de la Store minimizadas dejan una ventana interna "camuflada" (cloaked) que el agente tomaba por visible: no se restauraban ni recibían el foco | Las ventanas camufladas se ignoran | 3 ✅ |
 | `escribir_texto` escribe en la ventana, pero no puede saber si el cursor está en el campo correcto | UI Automation: elige el campo (el del cursor, el único que haya o el que digas) y después lee lo escrito (§11) | 5 ✅ |
-| `abrir_aplicacion` da por buena cualquier ventana nueva (una notificación que aparezca a la vez cuenta como éxito) | Pendiente: exigir que la ventana nueva sea de un proceso lanzado tras la orden (ojo con el Explorador, que reutiliza explorer.exe) | 5 |
+| `abrir_aplicacion` da por buena cualquier ventana nueva (una notificación que aparezca a la vez cuenta como éxito) | En parte: ya no cuentan las del propio agente (su aviso "está actuando" daba la Calculadora por abierta antes de aparecer, y el "cierra la calculadora" siguiente fallaba). Pendiente: exigir un proceso lanzado tras la orden (ojo con el Explorador) | 5 |
+| *Revisión general:* una pestaña "Steam Store - Opera" contaba como Steam: "abre steam" traía Opera al frente y el planificador creía Steam abierto | `ventanas_de`: coincidencia estricta (título exacto, " - App" o proceso); después, el proceso; el título suelto solo en `restaurar_ventana` | 6 ✅ |
+| "A las 12 de la noche" se programaba a las 12 del mediodía del día siguiente | 12 de la noche = 00:00 del día siguiente; 12 de la madrugada = 00:00 | 6 ✅ |
+| Con Slay the Spire 2 en marcha, "juega al Slay the Spire" decía "ya está en marcha" (una carpeta era el principio de la otra) | Se compara la carpeta con su separador | 6 ✅ |
+| El LLM devolvía a veces solo Ctrl+L para "busca X en google" (búsqueda que no se hace) | `plan_incompleto`: se le pide que lo corrija | 6 ✅ |
+| Cada skill consultaba por su cuenta las apps del menú Inicio (1,5 s la primera vez de cada una) | Una consulta compartida, precargada al arrancar | 6 ✅ |
+| Leer una ventana con UI Automation iba control a control (Steam: 1,2 s por lectura; un clic, 4-5 s) | `uia.controles`: todo de una vez con caché (FindAllBuildCache, vista cruda): ~0,5 s; un clic, ~2 s | 6 ✅ |
 
 ---
 

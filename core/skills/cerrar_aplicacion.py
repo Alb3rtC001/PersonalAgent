@@ -40,7 +40,7 @@ from core.estado import (
     ventana_existe,
     ventana_mostrada,
 )
-from core.skills.abrir_aplicacion import AppInstalada, listar_apps_instaladas
+from core.skills.abrir_aplicacion import AppInstalada, apps_instaladas
 from core.skills.base import Resultado, Skill
 from core.skills.ventanas import nombres_de_app, ventana_de_app
 
@@ -178,12 +178,9 @@ class CerrarAplicacion(Skill):
 
     def _nombres(self, aplicacion: str) -> list[str]:
         """Lo que ha dicho el usuario, su alias y el nombre de la app en el menú Inicio."""
-        try:
-            if self._apps is None:
-                self._apps = listar_apps_instaladas()
-        except Exception:  # sin índice del menú Inicio se busca solo por lo dicho
-            self._apps = []
-        return nombres_de_app(aplicacion, self._apps)
+        # Sin índice del menú Inicio (lista vacía) se busca solo por lo dicho.
+        apps = self._apps if self._apps is not None else apps_instaladas()
+        return nombres_de_app(aplicacion, apps)
 
     def _ventanas(self, nombres: list[str]) -> list[dict]:
         return [v for v in listar_ventanas_abiertas(incluir_ocultas=True) if ventana_de_app(v, nombres)]

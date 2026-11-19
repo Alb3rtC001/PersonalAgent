@@ -172,11 +172,74 @@ def recorrer(hwnd: int, max_nodos: int = 2500, tiempo_max: float = 2.0, profundi
         yield control
 
 
+class ControlCacheado:
+    """
+    Un control con su nombre, tipo, si está fuera de pantalla y su rectángulo
+    ya leídos (de una vez para toda la ventana, ver `controles`). Lo demás
+    (patrones, padre, foco...) se pide al control real la primera vez.
+    """
+
+    def __init__(self, elemento):
+        self._elemento = elemento
+        self._real = None
+        self.Name = elemento.CachedName or ""
+        self.ControlType = elemento.CachedControlType
+        self.ControlTypeName = auto.ControlTypeNames.get(self.ControlType, "Control")
+        self.IsOffscreen = bool(elemento.CachedIsOffscreen)
+        r = elemento.CachedBoundingRectangle
+        self.BoundingRectangle = auto.Rect(r.left, r.top, r.right, r.bottom)
+
+    def __getattr__(self, nombre):
+        # Solo llega aquí lo que no está leído: Element, AutomationId, GetParentControl...
+        if self._real is None:
+            self._real = auto.Control.CreateControlFromElement(self._elemento)
+        return getattr(self._real, nombre)
+
+
+# Name, ControlType, IsOffscreen, BoundingRectangle (ids de propiedad de UI Automation).
+_PROPIEDADES_CACHE = (30005, 30003, 30022, 30001)
+TREE_SCOPE_DESCENDIENTES = 4
+
+
+def controles(hwnd: int, max_nodos: int = 6000) -> list:
+    """
+    Todos los controles de una ventana, en orden, con nombre/tipo/visibilidad/sitio
+    leídos de UNA vez (FindAllBuildCache). Ir control a control (recorrer) son
+    varias llamadas entre procesos por cada uno: en Steam, ~0,5 s frente a 1,2-2 s,
+    y sin el tope de tiempo que dejaba sin ver el final de las ventanas grandes.
+    Si falla, se recorre como antes.
+    """
+    if not UIA_DISPONIBLE or not hwnd:
+        return []
+    try:
+        from uiautomation.uiautomation import _AutomationClient
+        ventana = auto.ControlFromHandle(hwnd)
+        if ventana is None:
+            return []
+        ia = _AutomationClient.instance().IUIAutomation
+        peticion = ia.CreateCacheRequest()
+        for propiedad in _PROPIEDADES_CACHE:
+            peticion.AddProperty(propiedad)
+        # Vista "cruda": la misma que al recorrer control a control. La vista de
+        # controles (la de por defecto) se salta textos que se ven, como
+        # "Filtros de la biblioteca" en Steam.
+        peticion.TreeFilter = ia.RawViewCondition
+        todos = ventana.Element.FindAllBuildCache(TREE_SCOPE_DESCENDIENTES, ia.CreateTrueCondition(), peticion)
+        if todos is None:
+            return []
+        return [ControlCacheado(todos.GetElement(i)) for i in range(min(todos.Length, max_nodos))]
+    except Exception:
+        import logging
+        logging.getLogger("personalagent").debug("Lectura rápida de controles fallida: recorro uno a uno.",
+                                                  exc_info=True)
+        return list(recorrer(hwnd, max_nodos=max_nodos, tiempo_max=3.0, profundidad=40))
+
+
 def campos_editables(hwnd: int) -> list:
     """Cuadros de texto de una ventana en los que se puede escribir (visibles)."""
     campos = []
     # Las apps web (Steam, Discord) tienen árboles hondos: mismo alcance que al leer la pantalla.
-    for control in recorrer(hwnd, max_nodos=6000, tiempo_max=3.0, profundidad=40):
+    for control in controles(hwnd):
         try:
             if control.ControlTypeName in TIPOS_EDITABLES and not control.IsOffscreen and es_editable(control):
                 campos.append(control)
@@ -199,7 +262,7 @@ TIPOS_PULSABLES = {"ButtonControl", "HyperlinkControl", "TabItemControl", "MenuI
 def controles_pulsables(hwnd: int, tiempo_max: float = 3.0) -> list:
     """Controles visibles de la ventana, con nombre, que se pueden pulsar."""
     encontrados = []
-    for control in recorrer(hwnd, max_nodos=6000, tiempo_max=tiempo_max, profundidad=40):
+    for control in controles(hwnd):
         try:
             if control.IsOffscreen or control.ControlTypeName not in TIPOS_PULSABLES:
                 continue
@@ -293,7 +356,7 @@ def texto_de_ventana(hwnd: int, max_caracteres: int = 7000, tiempo_max: float = 
     """
     lineas: list[str] = []
     total = 0
-    for control in recorrer(hwnd, max_nodos=6000, tiempo_max=tiempo_max, profundidad=40):
+    for control in controles(hwnd):
         try:
             if control.IsOffscreen:
                 continue

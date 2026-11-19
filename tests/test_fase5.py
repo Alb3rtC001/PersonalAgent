@@ -171,7 +171,7 @@ def pantalla_falsa(monkeypatch):
     """leer_pantalla con una ventana y un LLM falsos. Devuelve el estado a tocar."""
     estado = {"ventana": {"hwnd": 7, "titulo": "Calculadora", "proceso": "calculatorapp.exe"},
               "lecturas": ["La pantalla muestra 0"], "respuesta": "Pone 0.", "preguntas": []}
-    monkeypatch.setattr(pantalla, "listar_apps_instaladas", lambda: [])
+    monkeypatch.setattr(pantalla, "apps_instaladas", lambda: [])
     monkeypatch.setattr(pantalla, "nombres_de_app", lambda app, apps: [app])
     monkeypatch.setattr(pantalla, "elegir_ventana", lambda nombres, app: (estado["ventana"], None))
     monkeypatch.setattr(pantalla.time, "sleep", lambda s: None)
